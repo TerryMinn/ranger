@@ -336,6 +336,8 @@ The database name is the kebab-case package name converted to `snake_case`.
 
 ## First-time setup (generated app)
 
+> See [Quick start](#quick-start) for the full copy-paste flow. This section explains each step in detail.
+
 After Ranger creates your project:
 
 ```bash
