@@ -1,24 +1,55 @@
 {
   "name": "@ranger/create",
   "version": "0.1.0",
-  "private": true,
-  "description": "Interactive scaffold builder for a Next.js/tRPC/Expo/Better Auth monorepo.",
+  "description": "Scaffold production-ready monorepos with Next.js, Expo, tRPC, Better Auth, and Prisma.",
   "type": "module",
   "bin": {
-    "@ranger": "./bin/ranger.js",
-    "@renger": "./bin/ranger.js",
     "ranger": "./bin/ranger.js",
-    "renger": "./bin/ranger.js"
+    "renger": "./bin/ranger.js",
+    "@ranger": "./bin/ranger.js",
+    "@renger": "./bin/ranger.js"
   },
+  "files": [
+    "bin",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "check": "node --check ./bin/ranger.js",
-    "smoke": "node ./bin/ranger.js /private/tmp/ranger-smoke --yes --web --mobile --backend express --force"
+    "smoke": "node ./bin/ranger.js /private/tmp/ranger-smoke --yes --web --mobile --backend express --force",
+    "prepublishOnly": "pnpm run check"
   },
+  "keywords": [
+    "ranger",
+    "scaffold",
+    "generator",
+    "create-app",
+    "monorepo",
+    "nextjs",
+    "expo",
+    "trpc",
+    "better-auth",
+    "prisma",
+    "turbo",
+    "pnpm",
+    "fullstack",
+    "typescript"
+  ],
+  "author": "Rangorithm",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rangorithm/ranger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rangorithm/ranger/issues"
+  },
+  "homepage": "https://github.com/rangorithm/ranger#readme",
   "engines": {
     "node": ">=20.0.0"
   },
-  "files": [
-    "bin"
-  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "packageManager": "pnpm@9.12.0"
 }
