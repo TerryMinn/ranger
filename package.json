@@ -1,0 +1,24 @@
+{
+  "name": "@ranger/create",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Interactive scaffold builder for a Next.js/tRPC/Expo/Better Auth monorepo.",
+  "type": "module",
+  "bin": {
+    "@ranger": "./bin/ranger.js",
+    "@renger": "./bin/ranger.js",
+    "ranger": "./bin/ranger.js",
+    "renger": "./bin/ranger.js"
+  },
+  "scripts": {
+    "check": "node --check ./bin/ranger.js",
+    "smoke": "node ./bin/ranger.js /private/tmp/ranger-smoke --yes --web --mobile --backend express --force"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "files": [
+    "bin"
+  ],
+  "packageManager": "pnpm@9.12.0"
+}
