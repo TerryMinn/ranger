@@ -1,6 +1,6 @@
 {
   "name": "create-ranger",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Scaffold production-ready monorepos with Next.js, Expo, tRPC, Better Auth, and Prisma.",
   "type": "module",
   "bin": {

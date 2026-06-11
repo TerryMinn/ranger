@@ -320,6 +320,10 @@ function dbEnv(ctx) {
   return text`
     # Prisma Database
     DATABASE_URL="${databaseUrl(ctx)}"
+
+    # Local seed only — set before pnpm db:seed
+    SEED_ADMIN_EMAIL="admin@localhost"
+    SEED_ADMIN_PASSWORD=""
   `;
 }
 
@@ -679,7 +683,7 @@ function addRootFiles(files, ctx) {
       3. Run \`pnpm install\`.
       4. Run \`pnpm db:reset\` and type \`yes\` when you are ready to drop and recreate the local database.
       5. Run \`pnpm db:push\`.
-      6. Run \`pnpm db:seed\`.
+      6. Set \`SEED_ADMIN_PASSWORD\` in \`packages/db/.env\`, then run \`pnpm db:seed\`.
       7. Run \`pnpm dev\`.
 
       \`pnpm db:reset\` reads the root \`package.json\` name, converts it to snake_case, creates that PostgreSQL database, updates \`.env\` \`DATABASE_URL\`, and links \`packages/db/.env\` to the root \`.env\`.
@@ -1070,8 +1074,15 @@ function addDbPackage(files, ctx) {
       const prisma = new PrismaClient();
 
       async function main() {
-        const email = "superadmin@example.com";
-        const password = "root64@Admin";
+        const email = process.env.SEED_ADMIN_EMAIL || "admin@localhost";
+        const password = process.env.SEED_ADMIN_PASSWORD;
+
+        if (!password) {
+          throw new Error(
+            "Set SEED_ADMIN_PASSWORD in packages/db/.env before running db:seed.",
+          );
+        }
+
         const passwordHash = await hashPassword(password);
 
         const admin = await prisma.user.upsert({
@@ -2317,8 +2328,8 @@ function addWebModules(files) {
         const searchParams = useSearchParams();
         const [mode, setMode] = useState<"login" | "register">("login");
         const [name, setName] = useState("");
-        const [email, setEmail] = useState("superadmin@example.com");
-        const [password, setPassword] = useState("root64@Admin");
+        const [email, setEmail] = useState("");
+        const [password, setPassword] = useState("");
         const [errorMessage, setErrorMessage] = useState<string | null>(null);
         const [isPending, setIsPending] = useState(false);
 
@@ -3503,8 +3514,8 @@ function addMobileFeatures(files) {
       export function useAuthViewModel() {
         const [mode, setMode] = useState<"login" | "register">("login");
         const [name, setName] = useState("");
-        const [email, setEmail] = useState("superadmin@example.com");
-        const [password, setPassword] = useState("root64@Admin");
+        const [email, setEmail] = useState("");
+        const [password, setPassword] = useState("");
         const [errorMessage, setErrorMessage] = useState<string | null>(null);
         const [isPending, setIsPending] = useState(false);
 

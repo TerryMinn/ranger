@@ -61,7 +61,9 @@ npx create-ranger my-app
 cd my-app
 pnpm install
 
-# 3. Set auth secret in .env, then create the database
+# 3. Set secrets, create the database, then seed
+#    - BETTER_AUTH_SECRET in .env
+#    - SEED_ADMIN_PASSWORD in packages/db/.env
 pnpm db:reset    # type "yes" when prompted
 pnpm db:push
 pnpm db:seed
