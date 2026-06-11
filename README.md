@@ -70,12 +70,7 @@ pnpm db:seed
 pnpm dev
 ```
 
-Open `http://localhost:3000` and sign in with the seeded admin:
-
-```txt
-Email:    superadmin@example.com
-Password: root64@Admin
-```
+Open `http://localhost:3000`, then sign up at `/login` or use the admin account created by `pnpm db:seed` in your generated project.
 
 **One-liner (non-interactive, full stack + Express API):**
 
@@ -119,7 +114,7 @@ Every generated project includes:
 - Email/password auth with role-based access (`user`, `admin`, etc.)
 - Public post feed + authenticated post creation with image upload
 - Admin dashboard: users, posts, summary stats
-- Seeded superadmin account ready for local development
+- Database seed script for local admin user and sample post
 - `.cursor/rules` for API, database, web, and mobile architecture
 
 ---
@@ -435,14 +430,11 @@ pnpm dev
 | `pnpm dev:mobile` | Expo only |
 | `pnpm dev:server` | Express API only |
 
-### Default login
+### Sign in
 
-```
-Email:    superadmin@example.com
-Password: root64@Admin
-```
+After `pnpm db:seed`, open `/login` in the web app. You can sign in with the seeded admin user or create a new account via sign-up.
 
-Change these credentials before shipping to production.
+Update or remove the seed credentials in `packages/db/prisma/seed.mjs` before shipping to production.
 
 ---
 
@@ -551,7 +543,7 @@ These rules are loaded automatically in Cursor to keep generated code aligned wi
 | `pnpm db:reset` | Drop & recreate local Postgres DB from project name |
 | `pnpm db:push` | Push Prisma schema without migrations |
 | `pnpm db:migrate` | Create & apply Prisma migrations |
-| `pnpm db:seed` | Seed superadmin + welcome post |
+| `pnpm db:seed` | Seed admin user + welcome post |
 | `pnpm db:studio` | Open Prisma Studio |
 | `pnpm db:generate` | Regenerate Prisma Client |
 

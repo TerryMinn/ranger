@@ -692,12 +692,7 @@ function addRootFiles(files, ctx) {
       ${ctx.includeMobile ? "- `pnpm dev:mobile` starts only the Expo app." : ""}
       ${ctx.backend === "express" ? "- `pnpm dev:server` starts only the Express API server." : ""}
 
-      Seeded admin:
-
-      \`\`\`txt
-      superadmin@example.com
-      root64@Admin
-      \`\`\`
+      After \`pnpm db:seed\`, sign in at \`/login\` with the admin user defined in \`packages/db/prisma/seed.mjs\`, or create a new account via sign-up.
     `,
   );
 }
