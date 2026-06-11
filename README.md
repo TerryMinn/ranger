@@ -5,7 +5,7 @@
 It is the official project generator for the Dahlai-style stack: a pnpm + Turbo workspace with shared tRPC, Better Auth, Prisma, Next.js, and Expo — generated as real source files you own, not a black-box framework.
 
 ```bash
-npx @ranger/create my-app
+npx create-ranger my-app
 ```
 
 ---
@@ -65,13 +65,13 @@ Every generated project includes:
 ### Recommended — no install
 
 ```bash
-npx @ranger/create my-app
+npx create-ranger my-app
 ```
 
 ### Global install
 
 ```bash
-npm install -g @ranger/create
+npm install -g create-ranger
 ranger my-app
 ```
 
@@ -89,10 +89,10 @@ Ranger registers several bin names for convenience:
 
 | Command | Notes |
 | --- | --- |
-| `ranger` | Primary command |
-| `renger` | Typo-safe alias |
-| `@ranger` | Scoped-style alias |
-| `@renger` | Scoped typo-safe alias |
+| `ranger` | Primary command (after global install) |
+| `renger` | Typo-safe alias (after global install) |
+| `npx create-ranger` | Recommended — no global install needed |
+| `npm create ranger` | npm create shorthand |
 
 ---
 
@@ -101,7 +101,7 @@ Ranger registers several bin names for convenience:
 Run Ranger without flags to walk through setup:
 
 ```bash
-npx @ranger/create
+npx create-ranger
 ```
 
 You will be asked:
@@ -142,25 +142,25 @@ ranger <project-name> [options]
 **Full stack with Express backend (recommended for web + mobile):**
 
 ```bash
-npx @ranger/create my-app --yes --web --mobile --backend express
+npx create-ranger my-app --yes --web --mobile --backend express
 ```
 
 **Web-only with Next.js API routes:**
 
 ```bash
-npx @ranger/create my-app --yes --web --no-mobile --backend next
+npx create-ranger my-app --yes --web --no-mobile --backend next
 ```
 
 **Mobile-only with Express API:**
 
 ```bash
-npx @ranger/create my-app --yes --no-web --mobile --backend express
+npx create-ranger my-app --yes --no-web --mobile --backend express
 ```
 
 **CI / automation with forced overwrite:**
 
 ```bash
-npx @ranger/create my-app --yes --web --mobile --backend express --force
+npx create-ranger my-app --yes --web --mobile --backend express --force
 ```
 
 ### Defaults with `--yes`
@@ -472,7 +472,7 @@ API server running on http://localhost:4000
 Ranger refuses to write into populated folders unless you pass `--force`:
 
 ```bash
-npx @ranger/create my-app --yes --web --mobile --backend express --force
+npx create-ranger my-app --yes --web --mobile --backend express --force
 ```
 
 ### `psql: command not found`
@@ -516,20 +516,14 @@ Generates a test project at `/private/tmp/ranger-smoke` with web, mobile, and Ex
 
 ## Publishing to npm
 
-The package is published as **`@ranger/create`**.
-
-Before publishing, ensure `package.json` has:
-
-- `"private": false` (or remove the field)
-- `repository`, `license`, `keywords`, `author` fields
-- version bumped appropriately
+The package is published as **`create-ranger`**.
 
 Users install via:
 
 ```bash
-npm create @ranger/create@latest
+npm create ranger@latest
 # equivalent to:
-npx @ranger/create@latest my-app
+npx create-ranger@latest my-app
 ```
 
 ---
