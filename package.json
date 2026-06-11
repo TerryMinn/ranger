@@ -1,6 +1,6 @@
 {
   "name": "create-ranger",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Scaffold production-ready monorepos with Next.js, Expo, tRPC, Better Auth, and Prisma.",
   "type": "module",
   "bin": {
@@ -10,6 +10,7 @@
   },
   "files": [
     "bin",
+    "ranger.png",
     "README.md",
     "LICENSE"
   ],
@@ -43,7 +44,7 @@
   "bugs": {
     "url": "https://github.com/rangorithm/ranger/issues"
   },
-  "homepage": "https://github.com/rangorithm/ranger#readme",
+  "homepage": "https://www.npmjs.com/package/create-ranger",
   "engines": {
     "node": ">=20.0.0"
   },

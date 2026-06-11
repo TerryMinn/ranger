@@ -1,13 +1,51 @@
-# Ranger
+<p align="center">
+  <img src="./ranger.png" alt="Ranger" width="360" />
+</p>
 
-[![npm version](https://img.shields.io/npm/v/create-ranger.svg)](https://www.npmjs.com/package/create-ranger)
-[![node](https://img.shields.io/node/v/create-ranger.svg)](https://www.npmjs.com/package/create-ranger)
+<h1 align="center">Ranger</h1>
+
+<p align="center">
+  <a href="https://www.npmjs.com/package/create-ranger"><img src="https://img.shields.io/npm/v/create-ranger.svg" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/create-ranger"><img src="https://img.shields.io/node/v/create-ranger.svg" alt="node version" /></a>
+  <a href="https://github.com/rangorithm/ranger/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/create-ranger.svg" alt="license" /></a>
+</p>
+
+<p align="center">
+  <strong>Generate a full-stack monorepo in one command.</strong><br />
+  Next.js · Expo · tRPC · Better Auth · Prisma · Turbo
+</p>
 
 **Ranger** is a zero-dependency Node.js CLI that scaffolds production-ready monorepos for full-stack apps with web, mobile, auth, API, and database already wired together.
 
-It is the official project generator for the Dahlai-style stack: a pnpm + Turbo workspace with shared tRPC, Better Auth, Prisma, Next.js, and Expo — generated as real source files you own, not a black-box framework.
+It is the official project generator for the Dahlai-style stack — real source files you own, not a black-box framework.
 
-**npm package:** [`create-ranger`](https://www.npmjs.com/package/create-ranger)
+**npm:** [`create-ranger`](https://www.npmjs.com/package/create-ranger)
+
+---
+
+## Usage
+
+> **Ranger is a project generator (CLI), not a library you add to `dependencies`.**
+
+The npm sidebar shows `npm i create-ranger` — that only **installs the CLI tool**. To **generate a new project**, use one of these:
+
+```bash
+# ✅ recommended — run once, no install
+npx create-ranger my-app
+
+# ✅ npm create shorthand (same package)
+npm create ranger my-app
+
+# ✅ after global install
+npm install -g create-ranger
+ranger my-app
+```
+
+| ✅ Generate a project | ❌ Wrong |
+| --- | --- |
+| `npx create-ranger my-app` | `npm i create-ranger` alone (installs CLI only, creates nothing) |
+| `npm create ranger my-app` | Adding `create-ranger` to your app's `package.json` |
+| `pnpm dlx create-ranger my-app` | Expecting a library import like `import {} from "create-ranger"` |
 
 ---
 
@@ -99,58 +137,59 @@ Every generated project includes:
 
 ## Install Ranger
 
-Ranger is published on npm as **`create-ranger`**. You do **not** need to clone this repo to use it.
+Package name on npm: **`create-ranger`**
 
-### Option 1 — `npx` (recommended)
+You do **not** need to clone this repo. Pick one method below.
 
-Downloads the latest version and runs it once. No global install.
+### 1. `npx` — recommended
+
+Run the latest version without installing anything globally:
 
 ```bash
 npx create-ranger my-app
 ```
 
-Pin a specific version:
+Pin a version:
 
 ```bash
-npx create-ranger@1.0.0 my-app
+npx create-ranger@1.0.1 my-app
 ```
 
-### Option 2 — `npm create`
-
-Same package, npm's create-app shorthand:
+### 2. `npm create`
 
 ```bash
-npm create ranger@latest my-app
+npm create ranger my-app
 ```
 
-Equivalent to `npx create-ranger@latest my-app`.
+This runs the `create-ranger` package (npm strips the `create-` prefix).
 
-### Option 3 — `pnpm dlx`
+### 3. `pnpm dlx`
 
 ```bash
 pnpm dlx create-ranger my-app
 ```
 
-### Option 4 — `yarn`
+### 4. `yarn create`
 
 ```bash
 yarn create ranger my-app
 ```
 
-### Option 5 — Global install
+### 5. Global CLI install
 
-Install the CLI globally, then run `ranger` from anywhere:
+Only if you want the `ranger` command available everywhere:
 
 ```bash
 npm install -g create-ranger
 
-# any of these work after global install:
-ranger my-app
-create-ranger my-app
-renger my-app          # typo-safe alias
+ranger my-app           # primary
+create-ranger my-app    # same CLI
+renger my-app           # typo-safe alias
 ```
 
-### Option 6 — From source (contributors)
+> `npm i create-ranger` (without `-g`) installs the CLI into the current project's `node_modules`. That is rarely what you want — prefer `npx create-ranger` instead.
+
+### 6. From source (contributors)
 
 ```bash
 git clone https://github.com/rangorithm/ranger.git
@@ -158,24 +197,24 @@ cd ranger
 node ./bin/ranger.js my-app
 ```
 
-### Available commands
+### Command cheat sheet
 
-| Command | When to use |
+| Goal | Command |
 | --- | --- |
-| `npx create-ranger <name>` | **Most users** — no install, always latest |
-| `npm create ranger <name>` | Same as above, npm shorthand |
-| `pnpm dlx create-ranger <name>` | pnpm users |
-| `ranger <name>` | After `npm install -g create-ranger` |
-| `renger <name>` | Typo-safe alias (global install) |
+| Generate project (best) | `npx create-ranger <name>` |
+| Generate via npm create | `npm create ranger <name>` |
+| Generate via pnpm | `pnpm dlx create-ranger <name>` |
+| Generate via yarn | `yarn create ranger <name>` |
+| Use global CLI | `ranger <name>` after `npm i -g create-ranger` |
 
-### What gets created
+### Output
 
 ```bash
 npx create-ranger my-app
-# → ./my-app/   (new folder in your current directory)
+# creates → ./my-app/
 ```
 
-Ranger never modifies files outside the target folder.
+Ranger only writes inside the target folder.
 
 ---
 
