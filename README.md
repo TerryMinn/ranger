@@ -15,6 +15,10 @@
   Next.js · Expo · tRPC · Better Auth · Prisma · Turbo
 </p>
 
+<p align="center">
+  <strong>English</strong> · <a href="./README.my.md">မြန်မာ</a>
+</p>
+
 **Ranger** is a zero-dependency Node.js CLI that scaffolds production-ready monorepos for full-stack apps with web, mobile, auth, API, and database already wired together.
 
 It is the official project generator for the Dahlai-style stack — real source files you own, not a black-box framework.
@@ -149,7 +153,7 @@ npx create-ranger my-app
 Pin a version:
 
 ```bash
-npx create-ranger@1.0.1 my-app
+npx create-ranger@1.0.7 my-app
 ```
 
 ### 2. `npm create`

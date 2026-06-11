@@ -313,6 +313,7 @@ function rootEnv(ctx) {
     NEXT_PUBLIC_API_URL="${ctx.backend === "express" ? "http://localhost:4000" : ""}"
     EXPO_PUBLIC_API_URL="http://127.0.0.1:${ctx.apiPort}"
     EXPO_PUBLIC_API_PORT="${ctx.apiPort}"
+    ${ctx.includeMobile ? `EXPO_APP_SCHEME="${ctx.appScheme}"` : ""}
   `;
 }
 
@@ -342,6 +343,7 @@ function webEnv(ctx) {
 
       # Same-origin API routes are used by default.
       NEXT_PUBLIC_API_URL=""
+      ${ctx.includeMobile ? `\n      EXPO_APP_SCHEME="${ctx.appScheme}"` : ""}
     `;
   }
 
@@ -354,6 +356,9 @@ function webEnv(ctx) {
 
 function mobileEnv(ctx) {
   return text`
+    # Deep link scheme — must match app.json and server EXPO_APP_SCHEME.
+    EXPO_PUBLIC_APP_SCHEME="${ctx.appScheme}"
+
     # API URL for tRPC and Better Auth.
     # iOS simulator uses 127.0.0.1. Android emulator auto-falls back to 10.0.2.2 in code.
     # Physical devices should use your Mac LAN IP, for example http://192.168.1.10:${ctx.apiPort}.
@@ -369,6 +374,8 @@ function serverEnv(ctx) {
     BETTER_AUTH_URL="http://localhost:4000"
     CORS_ORIGIN="http://localhost:3000"
     PORT="4000"
+    NODE_ENV="development"
+    ${ctx.includeMobile ? `EXPO_APP_SCHEME="${ctx.appScheme}"` : ""}
   `;
 }
 
@@ -412,6 +419,8 @@ function addRootFiles(files, ctx) {
     "CORS_ORIGIN",
     "EXPO_PUBLIC_API_URL",
     "EXPO_PUBLIC_API_PORT",
+    "EXPO_PUBLIC_APP_SCHEME",
+    "EXPO_APP_SCHEME",
     "NEXT_PUBLIC_API_URL",
   ];
 
@@ -1225,13 +1234,31 @@ function addAuthPackage(files, ctx) {
       const secret =
         process.env.BETTER_AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? "";
 
+      const appScheme = process.env.EXPO_APP_SCHEME ?? "${ctx.appScheme}";
+      const apiPort = process.env.PORT ?? "${ctx.apiPort}";
+      const isDev = process.env.NODE_ENV !== "production";
       const trustedOrigins = [
-        baseURL,
+        baseURL.replace(/\\/$/, ""),
         process.env.CORS_ORIGIN,
         "http://localhost:3000",
         "http://localhost:4000",
         "http://localhost:8081",
-        "${ctx.appScheme}://",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:4000",
+        "http://127.0.0.1:8081",
+        ...(process.env.EXPO_APP_SCHEME || isDev
+          ? [
+              appScheme + "://",
+              appScheme + "://*",
+              "exp://",
+              "exp://**",
+              "exp://192.168.*.*:*/*",
+              "exp://10.0.2.2:*/*",
+              "exp://127.0.0.1:*/*",
+              "exp://localhost:*/*",
+              "http://10.0.2.2:" + apiPort,
+            ]
+          : []),
       ].filter((origin): origin is string => Boolean(origin));
 
       export const auth = betterAuth({
@@ -1728,7 +1755,11 @@ function addApiPackage(files) {
       } as const;
 
       export const userRouter = createTRPCRouter({
-        me: protectedProcedure.query(({ ctx }) => {
+        me: publicProcedure.query(async ({ ctx }) => {
+          if (!ctx.session?.user) {
+            return null;
+          }
+
           return ctx.db.user.findUnique({
             where: { id: ctx.session.user.id },
             select: privateUserSelect,
@@ -1943,8 +1974,62 @@ function addWebApp(files, ctx) {
       }
 
       a {
-        color: inherit;
         text-decoration: none;
+      }
+
+      @layer components {
+        .ui-btn {
+          display: inline-flex;
+          height: 2.5rem;
+          min-width: 5rem;
+          align-items: center;
+          justify-content: center;
+          border-radius: 0.375rem;
+          padding-inline: 1rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          line-height: 1;
+          transition:
+            background-color 150ms ease,
+            color 150ms ease,
+            border-color 150ms ease;
+        }
+
+        .ui-btn:disabled {
+          pointer-events: none;
+          opacity: 0.5;
+        }
+
+        .ui-btn-primary {
+          background-color: #000000;
+          color: #ffffff;
+        }
+
+        .ui-btn-primary:hover {
+          background-color: #262626;
+          color: #ffffff;
+        }
+
+        .ui-btn-outline {
+          border: 1px solid #d4d4d4;
+          background-color: #ffffff;
+          color: #000000;
+        }
+
+        .ui-btn-outline:hover {
+          background-color: #f5f5f5;
+          color: #000000;
+        }
+
+        .ui-btn-ghost {
+          background-color: transparent;
+          color: #000000;
+        }
+
+        .ui-btn-ghost:hover {
+          background-color: #f5f5f5;
+          color: #000000;
+        }
       }
     `,
   );
@@ -2072,7 +2157,7 @@ function addWebShared(files) {
       "use client";
 
       import type { AppRouter } from "@repo/api";
-      import { httpBatchLink, loggerLink } from "@trpc/client";
+      import { httpBatchLink } from "@trpc/client";
       import { createTRPCReact } from "@trpc/react-query";
       import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server";
       import superjson from "superjson";
@@ -2086,11 +2171,6 @@ function addWebShared(files) {
       export function createTRPCClient() {
         return trpc.createClient({
           links: [
-            loggerLink({
-              enabled: (op) =>
-                process.env.NODE_ENV === "development" ||
-                (op.direction === "down" && op.result instanceof Error),
-            }),
             httpBatchLink({
               transformer: superjson,
               url: getApiBaseUrl() + "/api/trpc",
@@ -2120,20 +2200,17 @@ function addWebShared(files) {
 
       type ButtonVariant = "default" | "outline" | "ghost";
 
+      const variantClassName: Record<ButtonVariant, string> = {
+        default: "ui-btn ui-btn-primary",
+        outline: "ui-btn ui-btn-outline",
+        ghost: "ui-btn ui-btn-ghost",
+      };
+
       export function buttonClassName(
         variant: ButtonVariant = "default",
         className?: string,
       ) {
-        return cn(
-          "inline-flex h-10 min-w-20 items-center justify-center rounded-md px-4 text-sm font-semibold leading-none transition-colors disabled:pointer-events-none disabled:opacity-50",
-          variant === "default" &&
-            "bg-black text-white visited:text-white hover:bg-neutral-800 [&_*]:text-white",
-          variant === "outline" &&
-            "border border-neutral-300 bg-white text-black visited:text-black hover:bg-neutral-100 [&_*]:text-black",
-          variant === "ghost" &&
-            "bg-transparent text-black visited:text-black hover:bg-neutral-100 [&_*]:text-black",
-          className,
-        );
+        return cn(variantClassName[variant], className);
       }
 
       type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -2455,6 +2532,7 @@ function addWebModules(files) {
         const postsQuery = trpc.post.getAll.useQuery({ limit: 50 });
         const meQuery = trpc.user.me.useQuery(undefined, {
           retry: false,
+          refetchOnWindowFocus: false,
         });
 
         const createMutation = trpc.post.create.useMutation({
@@ -2647,7 +2725,10 @@ function addWebModules(files) {
       }
 
       export function AdminShell({ children }: { children: React.ReactNode }) {
-        const meQuery = trpc.user.me.useQuery(undefined, { retry: false });
+        const meQuery = trpc.user.me.useQuery(undefined, {
+          retry: false,
+          refetchOnWindowFocus: false,
+        });
 
         async function signOut() {
           await authClient.signOut();
@@ -3338,12 +3419,14 @@ function addMobileApp(files, ctx) {
 
       import { getApiBaseUrl } from "./get-api-base-url";
 
+      const appScheme = process.env.EXPO_PUBLIC_APP_SCHEME ?? "${ctx.appScheme}";
+
       export const authClient = createAuthClient({
         baseURL: getApiBaseUrl(),
         plugins: [
           expoClient({
-            scheme: "${ctx.appScheme}",
-            storagePrefix: "${ctx.appScheme}",
+            scheme: appScheme,
+            storagePrefix: appScheme,
             storage: SecureStore,
           }),
         ],
@@ -3353,17 +3436,36 @@ function addMobileApp(files, ctx) {
 
   add(
     files,
+    "apps/mobile/src/lib/auth-headers.ts",
+    text`
+      import { authClient } from "./auth-client";
+
+      export function getAuthRequestHeaders(): Record<string, string> {
+        const headers: Record<string, string> = {};
+        const cookie = authClient.getCookie();
+
+        if (cookie) {
+          headers.Cookie = cookie;
+        }
+
+        return headers;
+      }
+    `,
+  );
+
+  add(
+    files,
     "apps/mobile/src/lib/trpc.tsx",
     text`
       import { useState } from "react";
       import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-      import { httpBatchLink, loggerLink } from "@trpc/client";
+      import { httpBatchLink } from "@trpc/client";
       import { createTRPCReact } from "@trpc/react-query";
       import superjson from "superjson";
 
       import type { AppRouter } from "@repo/api";
 
-      import { authClient } from "./auth-client";
+      import { getAuthRequestHeaders } from "./auth-headers";
       import {
         API_BASE_URL_PLACEHOLDER,
         resolveTrpcFetchUrl,
@@ -3391,24 +3493,20 @@ function addMobileApp(files, ctx) {
         const [trpcClient] = useState(() =>
           trpc.createClient({
             links: [
-              loggerLink({
-                enabled: () => __DEV__,
-              }),
               httpBatchLink({
                 transformer: superjson,
                 url: API_BASE_URL_PLACEHOLDER + "/api/trpc",
                 fetch(input, init) {
-                  return fetch(resolveTrpcFetchUrl(input), init);
+                  return fetch(resolveTrpcFetchUrl(input), {
+                    ...init,
+                    credentials: "omit",
+                  });
                 },
                 async headers() {
-                  const headers: Record<string, string> = {
+                  return {
                     "x-trpc-source": "expo-react-native",
+                    ...getAuthRequestHeaders(),
                   };
-                  const cookie = authClient.getCookie();
-                  if (cookie) {
-                    headers.cookie = cookie;
-                  }
-                  return headers;
                 },
               }),
             ],
@@ -3428,7 +3526,7 @@ function addMobileApp(files, ctx) {
     files,
     "apps/mobile/src/lib/upload-image.ts",
     text`
-      import { authClient } from "./auth-client";
+      import { getAuthRequestHeaders } from "./auth-headers";
       import { getApiBaseUrl } from "./get-api-base-url";
 
       type UploadImageParams = {
@@ -3474,10 +3572,10 @@ function addMobileApp(files, ctx) {
           } as unknown as Blob,
         );
 
-        const cookie = authClient.getCookie();
         const response = await fetch(getApiBaseUrl() + "/api/uploads", {
           method: "POST",
-          headers: cookie ? { cookie } : undefined,
+          credentials: "omit",
+          headers: getAuthRequestHeaders(),
           body: formData,
         });
 
@@ -3510,8 +3608,10 @@ function addMobileFeatures(files) {
       import { useState } from "react";
 
       import { authClient } from "../../../lib/auth-client";
+      import { trpc } from "../../../lib/trpc";
 
       export function useAuthViewModel() {
+        const utils = trpc.useUtils();
         const [mode, setMode] = useState<"login" | "register">("login");
         const [name, setName] = useState("");
         const [email, setEmail] = useState("");
@@ -3539,6 +3639,7 @@ function addMobileFeatures(files) {
             return;
           }
 
+          await utils.user.me.invalidate();
           router.back();
         }
 
@@ -3699,8 +3800,8 @@ function addMobileFeatures(files) {
     "apps/mobile/src/features/posts/hooks/use-posts-view-model.ts",
     text`
       import * as ImagePicker from "expo-image-picker";
-      import { router } from "expo-router";
-      import { useState } from "react";
+      import { router, useFocusEffect } from "expo-router";
+      import { useCallback, useState } from "react";
 
       import { authClient } from "../../../lib/auth-client";
       import { trpc } from "../../../lib/trpc";
@@ -3708,6 +3809,7 @@ function addMobileFeatures(files) {
 
       export function usePostsViewModel() {
         const utils = trpc.useUtils();
+        const { data: session } = authClient.useSession();
         const [title, setTitle] = useState("");
         const [content, setContent] = useState("");
         const [localImageUri, setLocalImageUri] = useState<string | null>(null);
@@ -3715,7 +3817,18 @@ function addMobileFeatures(files) {
         const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
         const postsQuery = trpc.post.getAll.useQuery({ limit: 50 });
-        const meQuery = trpc.user.me.useQuery(undefined, { retry: false });
+        const meQuery = trpc.user.me.useQuery(undefined, {
+          retry: false,
+          refetchOnWindowFocus: false,
+        });
+
+        useFocusEffect(
+          useCallback(() => {
+            void meQuery.refetch();
+          }, [meQuery]),
+        );
+
+        const isAuthed = Boolean(meQuery.data ?? session?.user);
 
         const createMutation = trpc.post.create.useMutation({
           onSuccess() {
@@ -3751,7 +3864,7 @@ function addMobileFeatures(files) {
         }
 
         async function createPost() {
-          if (!meQuery.data) {
+          if (!isAuthed) {
             router.push("/auth");
             return;
           }
@@ -3783,13 +3896,13 @@ function addMobileFeatures(files) {
 
         async function signOut() {
           await authClient.signOut();
-          void meQuery.refetch();
+          await utils.user.me.invalidate();
         }
 
         return {
           posts: postsQuery.data?.posts ?? [],
           isLoading: postsQuery.isLoading,
-          isAuthed: Boolean(meQuery.data),
+          isAuthed,
           title,
           setTitle,
           content,
@@ -4183,6 +4296,7 @@ function addExpressServer(files, ctx) {
       const app = express();
       const port = Number(process.env.PORT ?? ${ctx.apiPort});
       const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
+      const appScheme = process.env.EXPO_APP_SCHEME ?? "${ctx.appScheme}";
       const publicDir = path.resolve(process.cwd(), "public");
       const upload = multer({
         storage: multer.memoryStorage(),
@@ -4193,7 +4307,35 @@ function addExpressServer(files, ctx) {
 
       app.use(
         cors({
-          origin: corsOrigin,
+          origin(origin, callback) {
+            if (!origin) {
+              callback(null, true);
+              return;
+            }
+
+            const allowed = new Set([
+              corsOrigin,
+              "http://localhost:3000",
+              "http://localhost:4000",
+              "http://localhost:8081",
+              "http://127.0.0.1:3000",
+              "http://127.0.0.1:4000",
+              "http://127.0.0.1:8081",
+              "http://10.0.2.2:" + port,
+              appScheme + "://",
+            ]);
+
+            if (
+              allowed.has(origin) ||
+              origin.startsWith(appScheme + "://") ||
+              (process.env.NODE_ENV !== "production" && origin.startsWith("exp://"))
+            ) {
+              callback(null, true);
+              return;
+            }
+
+            callback(null, false);
+          },
           credentials: true,
         }),
       );
@@ -4201,6 +4343,15 @@ function addExpressServer(files, ctx) {
       app.use("/uploads", express.static(path.join(publicDir, "uploads")));
 
       app.all("/api/auth/*", async (req, res) => {
+        const expoOrigin = req.headers["expo-origin"];
+        if (typeof expoOrigin === "string" && expoOrigin.length > 0) {
+          delete req.headers.origin;
+          delete req.headers.referer;
+          req.headers.origin = expoOrigin;
+        } else if (!req.headers.origin && process.env.NODE_ENV !== "production") {
+          req.headers.origin = appScheme + "://";
+        }
+
         await toNodeHandler(auth)(req, res);
       });
 
