@@ -12,7 +12,7 @@
 
 <p align="center">
   <strong>Generate a full-stack monorepo in one command.</strong><br />
-  Next.js · Expo · tRPC · Better Auth · Prisma · Turbo
+  Next.js · Expo · Wails · tRPC · Better Auth · Prisma · Turbo
 </p>
 
 <p align="center">
@@ -78,10 +78,10 @@ pnpm dev
 
 Open `http://localhost:3000`, then sign up at `/login` or use the admin account created by `pnpm db:seed` in your generated project.
 
-**One-liner (non-interactive, full stack + Express API):**
+**One-liner (non-interactive, full stack + Express API + desktop):**
 
 ```bash
-npx create-ranger my-app --yes --web --mobile --backend express
+npx create-ranger my-app --yes --web --mobile --desktop --backend express
 ```
 
 ---
@@ -112,6 +112,7 @@ Every generated project includes:
 | Database | Prisma + PostgreSQL (Better Auth models + `Post` model) |
 | Web (optional) | Next.js 15 App Router, shadcn-style black & white UI |
 | Mobile (optional) | Expo Router, React Native `StyleSheet` only |
+| Desktop (optional) | Wails v2 app reusing the Next.js web UI via Vite |
 | Backend | **Next.js API routes** or **Express server** |
 | Tooling | Shared TypeScript config, Prettier, Cursor rules |
 
@@ -133,6 +134,7 @@ Every generated project includes:
 | pnpm | `9.x` (generated apps pin `pnpm@9.12.0`) |
 | PostgreSQL | local instance with `psql` available |
 | Expo Go / simulator | only if you enable the mobile app |
+| Go + Wails CLI v2 | only if you enable the desktop app (`go 1.23+`) |
 
 ---
 
@@ -232,7 +234,8 @@ You will be asked:
 1. **Project name** — becomes the folder name and `package.json` name (kebab-case)
 2. **Include Expo mobile app?** — `Y/n`
 3. **Include Next.js web/admin app?** — `Y/n`
-4. **Backend server** — choose one:
+4. **Include Wails desktop app?** — `y/N`
+5. **Backend server** — choose one (defaults to Express when desktop is enabled):
    - `Next.js API routes + tRPC`
    - `Express server + tRPC`
 
@@ -256,16 +259,24 @@ ranger <project-name> [options]
 | `--no-web` | Exclude the web app (Express backend only) |
 | `--mobile` | Include the Expo mobile app |
 | `--no-mobile` | Exclude the mobile app |
+| `--desktop` | Include the Wails desktop app |
+| `--no-desktop` | Exclude the desktop app |
 | `--backend next` | Use Next.js API routes for auth, tRPC, and uploads |
 | `--backend express` | Use a standalone Express server on port `4000` |
 | `--backend=express` | Same as `--backend express` |
 
 ### Examples
 
-**Full stack with Express backend (recommended for web + mobile):**
+**Full stack with Express backend (recommended for web + mobile + desktop):**
 
 ```bash
-npx create-ranger my-app --yes --web --mobile --backend express
+npx create-ranger my-app --yes --web --mobile --desktop --backend express
+```
+
+**Web + desktop with Express API:**
+
+```bash
+npx create-ranger my-app --yes --web --no-mobile --desktop --backend express
 ```
 
 **Web-only with Next.js API routes:**
@@ -293,9 +304,12 @@ npx create-ranger my-app --yes --web --mobile --backend express --force
 | Project name | `my-ranger-app` (if not provided) |
 | Web app | enabled |
 | Mobile app | enabled |
-| Backend | `next` |
+| Desktop app | disabled |
+| Backend | `next` (or `express` when `--desktop` is passed) |
 
 > **Note:** Choosing `--backend next` always enables the web app, because Next.js hosts the API routes.
+
+> **Note:** The desktop app requires the web app and an Express backend. It reuses `apps/web` through Vite aliases and calls the API via `VITE_API_URL`.
 
 ---
 
@@ -345,6 +359,7 @@ my-app/
 ├── apps/
 │   ├── web/                 # Next.js admin + public app (if enabled)
 │   ├── mobile/              # Expo app (if enabled)
+│   ├── desktop/             # Wails desktop app (if enabled)
 │   └── server/              # Express API (express backend only)
 ├── packages/
 │   ├── api/                 # tRPC routers: post, user, admin
@@ -401,6 +416,7 @@ Ranger also writes scoped env files where each runtime needs them:
 | `apps/web/.env` | Next.js |
 | `apps/server/.env` | Express (express backend only) |
 | `apps/mobile/.env` | Expo |
+| `apps/desktop/frontend/.env` | Wails desktop (`VITE_API_URL`) |
 
 ### 2. Create the database
 
@@ -435,6 +451,9 @@ pnpm dev
 | `pnpm dev:web` | Web/admin only |
 | `pnpm dev:mobile` | Expo only |
 | `pnpm dev:server` | Express API only |
+| `pnpm desktop:setup` | Check/install Go and Wails CLI for desktop |
+| `pnpm dev:desktop` | Wails desktop only |
+| `pnpm dev:desktop:all` | Express API + Wails desktop |
 
 ### Sign in
 
@@ -508,6 +527,35 @@ src/features/         # MVVM-style feature modules
   └── posts/
       ├── components/
       └── hooks/      # tRPC calls, navigation, uploads
+```
+
+### Desktop (`apps/desktop`)
+
+```
+frontend/src/         # Vite shell, auth storage, Next.js shims
+apps/web/src/         # reused UI modules via Vite aliases
+```
+
+- Wails v2 wraps a Vite + React Router frontend
+- Reuses web modules from `apps/web/src` (posts, auth, admin)
+- Persists Better Auth session data through Go bindings
+- Talks to the Express API at `VITE_API_URL` (default `http://localhost:4000`)
+
+Run `pnpm desktop:setup` to check for Go/Wails and install them when possible (also runs automatically right after project generation when desktop is enabled).
+
+Local desktop dev:
+
+```bash
+pnpm dev:desktop:all   # API + desktop window
+# or separately:
+pnpm dev:server
+pnpm dev:desktop
+```
+
+Build a distributable app:
+
+```bash
+pnpm --filter @repo/desktop build
 ```
 
 ### API (`packages/api`)
@@ -620,11 +668,17 @@ Ranger is a single file: `bin/ranger.js`.
 1. **Parse CLI args** — project name, flags, backend choice
 2. **Prompt** (unless `--yes`) — interactive configuration
 3. **Normalize** — derive `packageName`, `dbName`, ports, enabled apps
-4. **Generate** — build a `files` map with ~100+ source files as template strings
-5. **Write** — create the directory tree on disk
+4. **Generate** — build a `files` map with inline template strings for web, mobile, desktop, packages, and server
+5. **Write** — create the directory tree on disk (text + embedded binary assets for Wails icons/fonts)
 6. **Print next steps** — install, db setup, dev commands
 
 There are no runtime dependencies. The generated app dependencies are installed separately via `pnpm install` inside the new project.
+
+The Wails desktop app lives in `addDesktopApp()` inside `bin/ranger.js`, same pattern as `addWebApp()` and `addMobileApp()`. When `window-test/apps/desktop` changes, regenerate the embed:
+
+```bash
+pnpm run generate:desktop-app
+```
 
 ### Smoke test (maintainers)
 
@@ -632,7 +686,7 @@ There are no runtime dependencies. The generated app dependencies are installed 
 pnpm run smoke
 ```
 
-Generates a test project at `/private/tmp/ranger-smoke` with web, mobile, and Express backend.
+Generates a test project at `/private/tmp/ranger-smoke` with web, mobile, desktop, and Express backend.
 
 ---
 

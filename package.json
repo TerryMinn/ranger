@@ -1,6 +1,6 @@
 {
   "name": "create-ranger",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "Scaffold production-ready monorepos with Next.js, Expo, tRPC, Better Auth, and Prisma.",
   "type": "module",
   "bin": {
@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "check": "node --check ./bin/ranger.js",
-    "smoke": "node ./bin/ranger.js /private/tmp/ranger-smoke --yes --web --mobile --backend express --force",
+    "generate:desktop-app": "node ./scripts/generate-desktop-app.mjs",
+    "smoke": "node ./bin/ranger.js /private/tmp/ranger-smoke --yes --web --mobile --desktop --backend express --force",
     "prepublishOnly": "pnpm run check"
   },
   "keywords": [

@@ -12,7 +12,7 @@
 
 <p align="center">
   <strong>Command တစ်ခုတည်းနဲ့ full-stack monorepo တစ်ခုလုံး generate လုပ်ပါ။</strong><br />
-  Next.js · Expo · tRPC · Better Auth · Prisma · Turbo
+  Next.js · Expo · Wails · tRPC · Better Auth · Prisma · Turbo
 </p>
 
 <p align="center">
@@ -78,10 +78,10 @@ pnpm dev
 
 `http://localhost:3000` ဖွင့်ပြီး `/login` မှာ sign up လုပ်ပါ သို့မဟုတ် `pnpm db:seed` နဲ့ ဖန်တီးထားတဲ့ admin account သုံးပါ။
 
-**One-liner (non-interactive, full stack + Express API):**
+**One-liner (non-interactive, full stack + Express API + desktop):**
 
 ```bash
-npx create-ranger my-app --yes --web --mobile --backend express
+npx create-ranger my-app --yes --web --mobile --desktop --backend express
 ```
 
 ---
@@ -112,6 +112,7 @@ Generate လုပ်ထားတဲ့ project တိုင်းမှာ ပ�
 | Database | Prisma + PostgreSQL (Better Auth models + `Post` model) |
 | Web (optional) | Next.js 15 App Router, shadcn-style black & white UI |
 | Mobile (optional) | Expo Router, React Native `StyleSheet` only |
+| Desktop (optional) | Wails v2 app — Next.js web UI ကို Vite နဲ့ ပြန်သုံး |
 | Backend | **Next.js API routes** or **Express server** |
 | Tooling | Shared TypeScript config, Prettier, Cursor rules |
 
@@ -133,6 +134,7 @@ Generate လုပ်ထားတဲ့ project တိုင်းမှာ ပ�
 | pnpm | `9.x` (generated apps pin `pnpm@9.12.0`) |
 | PostgreSQL | local instance with `psql` available |
 | Expo Go / simulator | mobile app ဖွင့်မှသာ လို |
+| Go + Wails CLI v2 | desktop app ဖွင့်မှသာ လို (`go 1.23+`) |
 
 ---
 
@@ -232,7 +234,8 @@ npx create-ranger
 1. **Project name** — folder name နဲ့ `package.json` name (kebab-case)
 2. **Include Expo mobile app?** — `Y/n`
 3. **Include Next.js web/admin app?** — `Y/n`
-4. **Backend server** — ရွေးချယ်ပါ:
+4. **Include Wails desktop app?** — `y/N`
+5. **Backend server** — ရွေးချယ်ပါ (desktop ဖွင့်ရင် Express က default):
    - `Next.js API routes + tRPC`
    - `Express server + tRPC`
 
@@ -256,16 +259,24 @@ ranger <project-name> [options]
 | `--no-web` | Web app မထည့် (Express backend only) |
 | `--mobile` | Expo mobile app ထည့် |
 | `--no-mobile` | Mobile app မထည့် |
+| `--desktop` | Wails desktop app ထည့် |
+| `--no-desktop` | Desktop app မထည့် |
 | `--backend next` | Next.js API routes သုံး |
 | `--backend express` | Express server port `4000` |
 | `--backend=express` | `--backend express` နဲ့ တူ |
 
 ### Examples
 
-**Express backend နဲ့ full stack (web + mobile အတွက် အကြံပြု):**
+**Express backend နဲ့ full stack (web + mobile + desktop အတွက် အကြံပြု):**
 
 ```bash
-npx create-ranger my-app --yes --web --mobile --backend express
+npx create-ranger my-app --yes --web --mobile --desktop --backend express
+```
+
+**Web + desktop with Express API:**
+
+```bash
+npx create-ranger my-app --yes --web --no-mobile --desktop --backend express
 ```
 
 **Web-only with Next.js API routes:**
@@ -293,9 +304,12 @@ npx create-ranger my-app --yes --web --mobile --backend express --force
 | Project name | `my-ranger-app` (မပေးရင်) |
 | Web app | enabled |
 | Mobile app | enabled |
-| Backend | `next` |
+| Desktop app | disabled |
+| Backend | `next` (`--desktop` ပေးရင် `express`) |
 
 > **မှတ်ချက်:** `--backend next` ရွေးရင် web app ကို အမြဲ enable လုပ်ပါတယ် — Next.js က API routes ကို host လုပ်လို့ပါ။
+
+> **မှတ်ချက်:** Desktop app က web app နဲ့ Express backend လိုပါတယ်။ `apps/web` UI ကို Vite aliases နဲ့ ပြန်သုံးပြီး API ကို `VITE_API_URL` နဲ့ ခေါ်ပါတယ်။
 
 ---
 
@@ -345,6 +359,7 @@ my-app/
 ├── apps/
 │   ├── web/                 # Next.js admin + public app (if enabled)
 │   ├── mobile/              # Expo app (if enabled)
+│   ├── desktop/             # Wails desktop app (if enabled)
 │   └── server/              # Express API (express backend only)
 ├── packages/
 │   ├── api/                 # tRPC routers: post, user, admin
@@ -401,6 +416,7 @@ Ranger က runtime တစ်ခုချင်းစီအတွက် env files
 | `apps/web/.env` | Next.js |
 | `apps/server/.env` | Express (express backend only) |
 | `apps/mobile/.env` | Expo |
+| `apps/desktop/frontend/.env` | Wails desktop (`VITE_API_URL`) |
 
 ### 2. Database ဖန်တီးပါ
 
@@ -435,6 +451,9 @@ pnpm dev
 | `pnpm dev:web` | Web/admin သာ |
 | `pnpm dev:mobile` | Expo သာ |
 | `pnpm dev:server` | Express API သာ |
+| `pnpm desktop:setup` | Go/Wails ရှိ/မရှိ စစ်ပြီး install |
+| `pnpm dev:desktop` | Wails desktop သာ |
+| `pnpm dev:desktop:all` | Express API + Wails desktop |
 
 ### Sign in
 
@@ -508,6 +527,35 @@ src/features/         # MVVM-style feature modules
   └── posts/
       ├── components/
       └── hooks/      # tRPC calls, navigation, uploads
+```
+
+### Desktop (`apps/desktop`)
+
+```
+frontend/src/         # Vite shell, auth storage, Next.js shims
+apps/web/src/         # reused UI modules via Vite aliases
+```
+
+- Wails v2 + Vite + React Router frontend
+- `apps/web/src` modules (posts, auth, admin) ကို ပြန်သုံး
+- Better Auth session ကို Go bindings နဲ့ local storage ထဲ သိမ်း
+- Express API ကို `VITE_API_URL` (default `http://localhost:4000`) နဲ့ ခေါ်
+
+`pnpm desktop:setup` က Go/Wails ကို စစ်ပြီး install လုပ်ပေးပါတယ် (desktop enable နဲ့ generate လုပ်တဲ့အခါ auto run လုပ်ပါတယ်)။
+
+Local desktop dev:
+
+```bash
+pnpm dev:desktop:all
+# or separately:
+pnpm dev:server
+pnpm dev:desktop
+```
+
+Build:
+
+```bash
+pnpm --filter @repo/desktop build
 ```
 
 ### API (`packages/api`)
@@ -624,11 +672,17 @@ Ranger သည် file တစ်ခုတည်း: `bin/ranger.js`။
 1. **CLI args parse** — project name, flags, backend choice
 2. **Prompt** (`--yes` မပါရင်) — interactive configuration
 3. **Normalize** — `packageName`, `dbName`, ports, enabled apps derive
-4. **Generate** — template strings နဲ့ source files ~100+ `files` map တည်ဆောက်
-5. **Write** — directory tree ရေးသား
+4. **Generate** — web, mobile, desktop, packages, server အတွက် inline template strings နဲ့ `files` map တည်ဆောက်
+5. **Write** — directory tree ရေးသား (Wails icons/fonts အတွက် embedded binary assets ပါ)
 6. **Print next steps** — install, db setup, dev commands
 
 Runtime dependencies မရှိပါ။ Generated app dependencies ကို project အသစ်ထဲ `pnpm install` နဲ့ သီးသန့် install လုပ်ရပါမယ်။
+
+Wails desktop app က `addDesktopApp()` ထဲမှာ `addWebApp()` / `addMobileApp()` နဲ့ တူညီတဲ့ pattern သုံးပါတယ်။ `window-test/apps/desktop` ပြောင်းရင်:
+
+```bash
+pnpm run generate:desktop-app
+```
 
 ### Smoke test (maintainers)
 
@@ -636,7 +690,7 @@ Runtime dependencies မရှိပါ။ Generated app dependencies ကို 
 pnpm run smoke
 ```
 
-`/private/tmp/ranger-smoke` မှာ web, mobile, Express backend နဲ့ test project generate လုပ်ပါတယ်။
+`/private/tmp/ranger-smoke` မှာ web, mobile, desktop, Express backend နဲ့ test project generate လုပ်ပါတယ်။
 
 ---
 
