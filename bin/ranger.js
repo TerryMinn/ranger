@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import fs from "node:fs/promises";
+import crypto from "node:crypto";
 import path from "node:path";
 import process from "node:process";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 
 const BACKENDS = new Set(["next", "express"]);
+const FRONTENDS = new Set(["next", "react"]);
 
 function text(strings, ...values) {
   const raw = String.raw({ raw: strings }, ...values)
@@ -46,12 +48,19 @@ function toTitle(value) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function backendLabel(backend) {
+  return backend === "express"
+    ? "Express server + tRPC"
+    : "Next.js server + tRPC";
+}
+
 function parseArgs(argv) {
   const options = {
     appName: "",
     includeWeb: undefined,
     includeMobile: undefined,
     includeDesktop: undefined,
+    frontend: undefined,
     backend: undefined,
     yes: false,
     force: false,
@@ -92,6 +101,35 @@ function parseArgs(argv) {
       options.includeDesktop = false;
       continue;
     }
+    if (arg === "--next" || arg === "--nextjs") {
+      options.frontend = "next";
+      options.includeWeb = true;
+      continue;
+    }
+    if (arg === "--react") {
+      options.frontend = "react";
+      options.includeWeb = true;
+      continue;
+    }
+    if (arg === "--frontend") {
+      const next = argv[index + 1];
+      if (!FRONTENDS.has(next)) {
+        throw new Error("--frontend must be either next or react.");
+      }
+      options.frontend = next;
+      options.includeWeb = true;
+      index += 1;
+      continue;
+    }
+    if (arg.startsWith("--frontend=")) {
+      const frontend = arg.slice("--frontend=".length);
+      if (!FRONTENDS.has(frontend)) {
+        throw new Error("--frontend must be either next or react.");
+      }
+      options.frontend = frontend;
+      options.includeWeb = true;
+      continue;
+    }
     if (arg === "--backend") {
       const next = argv[index + 1];
       if (!BACKENDS.has(next)) {
@@ -130,9 +168,14 @@ async function promptForOptions(options) {
       includeWeb: options.includeWeb ?? true,
       includeMobile: options.includeMobile ?? true,
       includeDesktop: options.includeDesktop ?? false,
+      frontend: options.frontend ?? "next",
       backend:
         options.backend ??
-        (options.includeDesktop ? "express" : "next"),
+        (options.includeDesktop ||
+        options.frontend === "react" ||
+        options.includeWeb === false
+          ? "express"
+          : "next"),
     };
   }
 
@@ -153,27 +196,43 @@ async function promptForOptions(options) {
 
     const includeWeb =
       options.includeWeb ??
-      (await confirm(rl, "Include Next.js web/admin app?", true));
+      (await confirm(rl, "Include web/admin app?", true));
+
+    const frontend = includeWeb
+      ? options.frontend ??
+        (await select(rl, "Web frontend", [
+          { value: "next", label: "Next.js App Router" },
+          { value: "react", label: "React + Vite + TanStack Router" },
+        ]))
+      : options.frontend;
 
     const includeDesktop =
       options.includeDesktop ??
       (await confirm(
         rl,
-        "Include Wails desktop app? (like window-test; requires Go + Wails CLI)",
+        "Include Wails desktop app? (requires Go + Wails CLI)",
         false,
       ));
 
     let backend =
       options.backend ??
-      (includeDesktop
+      (includeDesktop || frontend === "react" || !includeWeb
         ? "express"
         : await select(rl, "Backend server", [
-            { value: "next", label: "Next.js API routes + tRPC" },
-            { value: "express", label: "Express server + tRPC (required for desktop/mobile API)" },
+            { value: "next", label: "Next.js server + tRPC" },
+            {
+              value: "express",
+              label: "Express server + tRPC (required for desktop)",
+            },
           ]));
 
     if (includeDesktop && backend !== "express") {
       console.log("Desktop app requires Express backend. Switching backend to express.");
+      backend = "express";
+    }
+
+    if (frontend === "react" && backend !== "express") {
+      console.log("React + Vite requires the Express backend. Switching backend to express.");
       backend = "express";
     }
 
@@ -182,11 +241,19 @@ async function promptForOptions(options) {
     console.log("  Web: " + (includeWeb ? "yes" : "no"));
     console.log("  Mobile: " + (includeMobile ? "yes" : "no"));
     console.log("  Desktop: " + (includeDesktop ? "yes" : "no"));
-    console.log(
-      "  Backend: " +
-        backend +
-        (includeDesktop ? " (required for desktop)" : ""),
-    );
+    if (includeWeb) {
+      console.log(
+        "  Frontend: " +
+          (frontend === "react" ? "React + Vite + TanStack Router" : "Next.js App Router"),
+      );
+    }
+    const automaticBackend =
+      frontend === "react"
+        ? " (automatic for React + Vite)"
+        : includeDesktop
+          ? " (required for desktop)"
+          : "";
+    console.log("  Backend: " + backendLabel(backend) + automaticBackend);
     console.log("");
 
     return {
@@ -195,6 +262,7 @@ async function promptForOptions(options) {
       includeMobile,
       includeWeb,
       includeDesktop,
+      frontend,
       backend,
     };
   } finally {
@@ -234,9 +302,24 @@ function normalizeOptions(options) {
   }
 
   const includeDesktop = Boolean(options.includeDesktop);
+  let frontend = options.frontend ?? "next";
   let backend = options.backend ?? "next";
   let includeWeb = backend === "next" ? true : Boolean(options.includeWeb);
   const includeMobile = Boolean(options.includeMobile);
+
+  if (!FRONTENDS.has(frontend)) {
+    throw new Error("Frontend must be either next or react.");
+  }
+
+  if (frontend === "react" && backend !== "express") {
+    throw new Error(
+      "React + Vite requires --backend express (Vite does not host the server API).",
+    );
+  }
+
+  if (backend === "next") {
+    frontend = "next";
+  }
 
   if (includeDesktop) {
     if (backend !== "express") {
@@ -261,10 +344,12 @@ function normalizeOptions(options) {
     packageName,
     appTitle: toTitle(packageName),
     appScheme: packageName.replace(/-/g, ""),
+    authSecret: crypto.randomBytes(32).toString("base64url"),
     dbName: packageName.replace(/-/g, "_"),
     includeWeb,
     includeMobile,
     includeDesktop,
+    frontend,
     backend,
     apiPort: backend === "express" ? 4000 : 3000,
     force: options.force,
@@ -318,7 +403,7 @@ function createFiles(ctx) {
   const files = {};
 
   addRootFiles(files, ctx);
-  addCursorRules(files);
+  addCursorRules(files, ctx);
   addToolingFiles(files);
   addDbPackage(files, ctx);
   addAuthPackage(files, ctx);
@@ -349,32 +434,33 @@ function rootScripts(ctx) {
   if (ctx.includeMobile) filters.push("--filter=@repo/mobile");
   if (ctx.backend === "express") filters.push("--filter=@repo/server");
   if (ctx.includeDesktop) filters.push("--filter=@repo/desktop");
+  const withEnv = (command) => `dotenv -e .env -- ${command}`;
 
   const scripts = {
-    postinstall: "turbo run db:generate --filter=@repo/db",
-    build: "turbo run build",
-    dev: `turbo run dev ${filters.join(" ")} --ui=tui`,
-    "dev:stream": `turbo run dev ${filters.join(" ")} --ui=stream`,
-    lint: "turbo run lint",
+    postinstall: withEnv("turbo run db:generate --filter=@repo/db"),
+    build: withEnv("turbo run build"),
+    dev: withEnv(`turbo run dev ${filters.join(" ")} --ui=tui`),
+    "dev:stream": withEnv(`turbo run dev ${filters.join(" ")} --ui=stream`),
+    lint: withEnv("turbo run lint"),
     format: 'prettier --write "**/*.{ts,tsx,js,jsx,json,md,mdc}"',
     "format:check": 'prettier --check "**/*.{ts,tsx,js,jsx,json,md,mdc}"',
-    "db:generate": "turbo run db:generate",
+    "db:generate": withEnv("turbo run db:generate"),
     "db:reset": "bash ./scripts/reset-database.sh",
-    "db:push": "turbo run db:push --filter=@repo/db",
-    "db:migrate": "turbo run db:migrate --filter=@repo/db",
-    "db:seed": "turbo run db:seed --filter=@repo/db",
-    "db:studio": "pnpm --filter @repo/db db:studio",
-    typecheck: "turbo run typecheck",
+    "db:push": withEnv("turbo run db:push --filter=@repo/db"),
+    "db:migrate": withEnv("turbo run db:migrate --filter=@repo/db"),
+    "db:seed": withEnv("turbo run db:seed --filter=@repo/db"),
+    "db:studio": withEnv("pnpm --filter @repo/db db:studio"),
+    typecheck: withEnv("turbo run typecheck"),
   };
 
-  if (ctx.includeWeb) scripts["dev:web"] = "turbo run dev --filter=@repo/web --ui=stream";
-  if (ctx.includeMobile) scripts["dev:mobile"] = "turbo run dev --filter=@repo/mobile --ui=stream";
-  if (ctx.backend === "express") scripts["dev:server"] = "turbo run dev --filter=@repo/server --ui=stream";
+  if (ctx.includeWeb) scripts["dev:web"] = withEnv("turbo run dev --filter=@repo/web --ui=stream");
+  if (ctx.includeMobile) scripts["dev:mobile"] = withEnv("turbo run dev --filter=@repo/mobile --ui=stream");
+  if (ctx.backend === "express") scripts["dev:server"] = withEnv("turbo run dev --filter=@repo/server --ui=stream");
   if (ctx.includeDesktop) {
     scripts["desktop:setup"] = "bash ./scripts/setup-desktop.sh";
-    scripts["dev:desktop"] = "turbo run dev --filter=@repo/desktop --ui=stream";
+    scripts["dev:desktop"] = withEnv("turbo run dev --filter=@repo/desktop --ui=stream");
     scripts["dev:desktop:all"] =
-      "turbo run dev --filter=@repo/server --filter=@repo/desktop --ui=stream";
+      withEnv("turbo run dev --filter=@repo/server --filter=@repo/desktop --ui=stream");
   }
 
   return scripts;
@@ -384,16 +470,19 @@ function databaseUrl(ctx) {
   return `postgresql://postgres:postgres@localhost:5432/${ctx.dbName}?schema=public`;
 }
 
-function rootEnv(ctx) {
+function rootEnv(ctx, example = false) {
   return text`
     DATABASE_URL="${databaseUrl(ctx)}"
-    BETTER_AUTH_SECRET="replace-with-a-long-random-secret"
+    BETTER_AUTH_SECRET="${example ? "replace-with-a-long-random-secret" : ctx.authSecret}"
     BETTER_AUTH_URL="http://localhost:${ctx.apiPort}"
     CORS_ORIGIN="http://localhost:3000"
     NEXT_PUBLIC_API_URL="${ctx.backend === "express" ? "http://localhost:4000" : ""}"
+    VITE_API_URL="${ctx.backend === "express" ? "http://localhost:4000" : ""}"
     EXPO_PUBLIC_API_URL="http://127.0.0.1:${ctx.apiPort}"
     EXPO_PUBLIC_API_PORT="${ctx.apiPort}"
-    ${ctx.includeMobile ? `EXPO_APP_SCHEME="${ctx.appScheme}"` : ""}
+    ${ctx.includeMobile ? `EXPO_PUBLIC_APP_SCHEME="${ctx.appScheme}"\n    EXPO_APP_SCHEME="${ctx.appScheme}"` : ""}
+    SEED_ADMIN_EMAIL="admin@localhost"
+    SEED_ADMIN_PASSWORD=""
   `;
 }
 
@@ -409,6 +498,13 @@ function dbEnv(ctx) {
 }
 
 function webEnv(ctx) {
+  if (ctx.frontend === "react") {
+    return text`
+      # Root .env is authoritative. This file documents the Vite-specific key.
+      VITE_API_URL="http://localhost:4000"
+    `;
+  }
+
   if (ctx.backend === "next") {
     return text`
       # Database
@@ -428,7 +524,7 @@ function webEnv(ctx) {
   }
 
   return text`
-    # Express API server
+    # Root .env is authoritative. These are the Next.js client keys.
     NEXT_PUBLIC_API_URL="http://localhost:4000"
     BETTER_AUTH_URL="http://localhost:4000"
   `;
@@ -598,6 +694,7 @@ function addRootFiles(files, ctx) {
       scripts: rootScripts(ctx),
       devDependencies: {
         "@repo/typescript-config": "workspace:*",
+        "dotenv-cli": "^8.0.0",
         prettier: "^3.3.3",
         turbo: "^2.3.0",
       },
@@ -617,6 +714,30 @@ function addRootFiles(files, ctx) {
         ${ctx.includeDesktop ? '- "apps/desktop/frontend"' : ""}
         - "packages/*"
         - "tooling/*"
+    `,
+  );
+
+  add(
+    files,
+    "AGENTS.md",
+    text`
+      # ${ctx.appTitle} Agent Guide
+
+      ## Architecture
+
+      - Apps are delivery layers. Shared server behavior belongs in \`packages/api\`, authentication in \`packages/auth\`, and persistence in \`packages/db\`.
+      - The web frontend is ${ctx.frontend === "react" ? "React + Vite with TanStack Router" : "Next.js App Router"}.
+      ${ctx.includeDesktop ? "- The Wails desktop reuses web feature modules. Keep shared modules framework-portable and use `@/lib/navigation`." : ""}
+      ${ctx.backend === "express" ? "- Express owns HTTP transport only; add business procedures to typed tRPC routers." : "- Next.js route handlers host auth, tRPC, and uploads."}
+      - Feature components render state. View-model hooks own queries, mutations, forms, uploads, and navigation side effects.
+
+      ## Required checks
+
+      - Run \`pnpm typecheck\` after TypeScript changes.
+      - Run \`pnpm --filter @repo/web build\` after web routing or configuration changes.
+      ${ctx.backend === "express" ? "- Run `pnpm --filter @repo/server build` after server or shared-package changes." : ""}
+      ${ctx.includeDesktop ? "- Run `pnpm --filter @repo/desktop-frontend build` after changing shared web modules." : ""}
+      - Never commit real secrets. The root \`.env\` is the local source of truth.
     `,
   );
 
@@ -808,34 +929,9 @@ function addRootFiles(files, ctx) {
       fs.writeFileSync(envFile, text.endsWith("\\n") ? text : text + "\\n");
       NODE
 
-      node - "$TARGET_DATABASE_URL" \
-        "$ROOT_DIR/.env.example" \
-        "$ROOT_DIR/packages/db/.env.example" \
-        "$ROOT_DIR/apps/web/.env" \
-        "$ROOT_DIR/apps/web/.env.local" \
-        "$ROOT_DIR/apps/server/.env" \
-        "$ROOT_DIR/apps/server/.env.example" <<'NODE'
-      const fs = require("fs");
-      const [databaseUrl, ...files] = process.argv.slice(2);
-      const line = 'DATABASE_URL="' + databaseUrl + '"';
-
-      for (const file of files) {
-        if (!fs.existsSync(file)) continue;
-
-        let text = fs.readFileSync(file, "utf8");
-        if (/^DATABASE_URL=.*$/m.test(text)) {
-          text = text.replace(/^DATABASE_URL=.*$/m, line);
-        } else {
-          text = text.replace(/\\s*$/u, "");
-          text += (text ? "\\n" : "") + line + "\\n";
-        }
-        fs.writeFileSync(file, text.endsWith("\\n") ? text : text + "\\n");
-      }
-      NODE
-
       echo
       echo "Database '$DATABASE_NAME' is ready."
-      echo "Updated DATABASE_URL in root, db, web, and server env files."
+      echo "Updated DATABASE_URL in the root .env source of truth."
       echo "Next: pnpm db:push && pnpm db:seed"
     `,
   );
@@ -868,7 +964,7 @@ function addRootFiles(files, ctx) {
   add(
     files,
     ".env.example",
-    rootEnv(ctx),
+    rootEnv(ctx, true),
   );
 
   add(
@@ -902,24 +998,32 @@ function addRootFiles(files, ctx) {
       - pnpm workspace + Turbo
       - shared tRPC API package
       - Better Auth + Prisma
-      ${ctx.includeWeb ? "- Next.js web/admin app with shadcn-style black and white UI" : ""}
+      ${ctx.includeWeb ? `- ${ctx.frontend === "react" ? "React + Vite + TanStack Router" : "Next.js App Router"} web/admin app with shadcn-style black and white UI` : ""}
       ${ctx.includeMobile ? "- Expo mobile app using React Native StyleSheet only" : ""}
-      ${ctx.includeDesktop ? "- Wails desktop app reusing the Next.js web UI" : ""}
-      - ${ctx.backend === "next" ? "Next.js API routes for auth, tRPC, and uploads" : "Express API server for auth, tRPC, and uploads"}
+      ${ctx.includeDesktop ? "- Wails desktop app reusing the web feature modules" : ""}
+      - ${ctx.backend === "next" ? "Next.js server for auth, tRPC, and uploads" : "Express + tRPC server for auth and uploads"}
+
+      ## App layout
+
+      ${ctx.includeWeb ? "- `apps/web` — " + (ctx.frontend === "react" ? "React + Vite frontend" : "Next.js frontend") : ""}
+      ${ctx.backend === "express" ? "- `apps/server` — Express server hosting tRPC, Better Auth, and uploads" + (ctx.frontend === "react" ? "; already connected to `apps/web`" : "") : "- `apps/web/src/app/api` — Next.js route handlers hosting tRPC, Better Auth, and uploads"}
+      - \`packages/api\` — shared tRPC routers used by the selected server
+      - \`packages/auth\` — shared Better Auth configuration
+      - \`packages/db\` — shared Prisma database package
 
       ## Setup
 
-      1. Copy \`.env.example\` to \`.env\`.
-      2. Update \`BETTER_AUTH_SECRET\`.
-      3. Run \`pnpm install\`.
+      1. Update \`BETTER_AUTH_SECRET\` and \`SEED_ADMIN_PASSWORD\` in the generated root \`.env\`.
+      2. Run \`pnpm install\`.
+      3. Keep the root \`.env\` as the single local environment source of truth.
       4. Run \`pnpm db:reset\` and type \`yes\` when you are ready to drop and recreate the local database.
       5. Run \`pnpm db:push\`.
-      6. Set \`SEED_ADMIN_PASSWORD\` in \`packages/db/.env\`, then run \`pnpm db:seed\`.
-      ${ctx.includeDesktop ? "7. Run \\`pnpm desktop:setup\\` to install Go and the Wails CLI if needed." : ""}
-      ${ctx.includeDesktop ? "8. Run \\`pnpm dev\\`." : "7. Run \\`pnpm dev\\`."}
+      6. Run \`pnpm db:seed\`.
+      ${ctx.includeDesktop ? "7. Run `pnpm desktop:setup` to install Go and the Wails CLI if needed." : ""}
+      ${ctx.includeDesktop ? "8. Run `pnpm dev`." : "7. Run `pnpm dev`."}
 
       \`pnpm db:reset\` reads the root \`package.json\` name, converts it to snake_case, creates that PostgreSQL database, updates \`.env\` \`DATABASE_URL\`, and links \`packages/db/.env\` to the root \`.env\`.
-      ${ctx.includeDesktop ? "\\`pnpm desktop:setup\\` checks for Go and Wails, installs them when possible, and prepares the desktop toolchain." : ""}
+      ${ctx.includeDesktop ? "`pnpm desktop:setup` checks for Go and Wails, installs them when possible, and prepares the desktop toolchain." : ""}
 
       ## Development Scripts
 
@@ -932,14 +1036,33 @@ function addRootFiles(files, ctx) {
       ${ctx.includeDesktop ? "- `pnpm dev:desktop` starts only the Wails desktop app." : ""}
       ${ctx.includeDesktop ? "- `pnpm dev:desktop:all` starts the API server and desktop app together." : ""}
 
-      ${ctx.includeDesktop ? `The desktop app reuses UI from \`apps/web\` and talks to the Express API at \`VITE_API_URL\` (default \`http://localhost:${ctx.apiPort}\`). Copy \`apps/desktop/frontend/.env.example\` to \`apps/desktop/frontend/.env\` if you need a custom API URL.` : ""}
+      ${ctx.includeDesktop ? `The desktop app reuses UI from \`apps/web\` and talks to the Express API at root \`VITE_API_URL\` (default \`http://localhost:${ctx.apiPort}\`). Set that URL to the deployed API before producing a release build.` : ""}
 
       After \`pnpm db:seed\`, sign in at \`/login\` with the admin user defined in \`packages/db/prisma/seed.mjs\`, or create a new account via sign-up.
     `,
   );
 }
 
-function addCursorRules(files) {
+function addCursorRules(files, ctx) {
+  add(
+    files,
+    ".cursor/rules/architecture/core.mdc",
+    text`
+      ---
+      alwaysApply: true
+      ---
+
+      # Ranger Architecture Contract
+
+      - Keep domain and data-access logic in \`packages/api\`, \`packages/auth\`, and \`packages/db\`; apps are delivery layers.
+      - Consume server capabilities through the typed tRPC router instead of duplicating fetch contracts in each app.
+      - Never import app code into shared packages.
+      - Keep route entry files thin and move stateful orchestration into feature view-model hooks.
+      - Treat authentication, authorization, uploads, and environment changes as cross-client changes; verify every enabled client.
+      - Run \`pnpm typecheck\` after architectural changes and build the affected app before finishing.
+    `,
+  );
+
   add(
     files,
     ".cursor/rules/api/api.mdc",
@@ -980,29 +1103,35 @@ function addCursorRules(files) {
     `,
   );
 
-  add(
-    files,
-    ".cursor/rules/web-arch/web-arch.mdc",
+  if (ctx.includeWeb) {
+    add(
+      files,
+      `.cursor/rules/web-arch/${ctx.frontend === "react" ? "react-vite" : "nextjs"}.mdc`,
     text`
       ---
       alwaysApply: true
       ---
 
-      # Next.js Web Architecture
+      # ${ctx.frontend === "react" ? "React + Vite Web Architecture" : "Next.js Web Architecture"}
 
-      - Route files live in \`apps/web/src/app/**\` and stay thin.
+      - Route definitions live in \`${ctx.frontend === "react" ? "apps/web/src/router.tsx" : "apps/web/src/app/**"}\` and stay thin.
       - Feature code lives under \`apps/web/src/modules/<domain>\`.
       - Admin feature code lives under \`apps/web/src/modules/admin/<domain>\`.
       - Shared UI primitives live under \`apps/web/src/components/ui\`.
       - Business logic belongs in hooks/view-models, routers, schemas, utils, or server libs.
       - Components should render data and call actions returned by hooks.
+      ${ctx.frontend === "react" ? "- Use TanStack Router for routes and navigation; do not add React Router or Next.js imports." : "- Keep reusable feature modules client-compatible because the Wails desktop may consume them through Vite aliases."}
+      - Import navigation through \`@/lib/navigation\` so feature modules remain desktop-compatible.
+      - Use TanStack Query through the typed tRPC React client for server state.
       - Use shadcn-style primitives and keep the visual system black and white.
     `,
-  );
+    );
+  }
 
-  add(
-    files,
-    ".cursor/rules/mobile-arch/mobile-arch.mdc",
+  if (ctx.includeMobile) {
+    add(
+      files,
+      ".cursor/rules/mobile-arch/mobile-arch.mdc",
     text`
       ---
       alwaysApply: true
@@ -1017,7 +1146,49 @@ function addCursorRules(files) {
       - Use React Native \`StyleSheet\` only for UI styling in this scaffold.
       - Do not add mobile UI libraries unless the project deliberately changes that rule.
     `,
-  );
+    );
+  }
+
+  if (ctx.backend === "express") {
+    add(
+      files,
+      ".cursor/rules/server-arch/server-arch.mdc",
+      text`
+        ---
+        alwaysApply: true
+        ---
+
+        # Express Server Architecture
+
+        - Keep Express focused on transport concerns: CORS, auth handlers, tRPC middleware, uploads, and health checks.
+        - Add business operations to \`packages/api\` routers, not directly to Express routes.
+        - Read runtime configuration from the root \`.env\`; do not create divergent app-local secrets.
+        - Protect uploads with an authenticated session, validate MIME type and size, and use randomized server-side filenames.
+        - The production server is bundled with tsup; keep \`@repo/api\`, \`@repo/auth\`, and \`@repo/db\` inside the bundle.
+      `,
+    );
+  }
+
+  if (ctx.includeDesktop) {
+    add(
+      files,
+      ".cursor/rules/desktop-arch/desktop-arch.mdc",
+      text`
+        ---
+        alwaysApply: true
+        ---
+
+        # Wails Desktop Architecture
+
+        - Reuse \`apps/web/src/modules\` and shared UI through Vite aliases; do not fork product behavior.
+        - Web feature modules must import navigation from \`@/lib/navigation\` and data access from \`@/trpc/client\`.
+        - Do not introduce browser-only cookie assumptions; desktop auth uses the Better Auth bearer plugin and Go-backed storage.
+        - Keep Wails bindings OS-facing. Product logic belongs in shared TypeScript packages or feature view-models.
+        - After changing shared web modules, run web typecheck and \`pnpm --filter @repo/desktop-frontend build\`.
+        - Use an OS credential vault before shipping sensitive desktop sessions; generated file storage is a development baseline.
+      `,
+    );
+  }
 }
 
 function addToolingFiles(files) {
@@ -1160,12 +1331,6 @@ function addDbPackage(files, ctx) {
   add(
     files,
     "packages/db/.env.example",
-    dbEnv(ctx),
-  );
-
-  add(
-    files,
-    "packages/db/.env",
     dbEnv(ctx),
   );
 
@@ -1317,7 +1482,7 @@ function addDbPackage(files, ctx) {
 
         if (!password) {
           throw new Error(
-            "Set SEED_ADMIN_PASSWORD in packages/db/.env before running db:seed.",
+            "Set SEED_ADMIN_PASSWORD in the root .env before running db:seed.",
           );
         }
 
@@ -2076,6 +2241,15 @@ function addApiPackage(files) {
 }
 
 function addWebApp(files, ctx) {
+  if (ctx.frontend === "react") {
+    addReactWebApp(files, ctx);
+    return;
+  }
+
+  addNextWebApp(files, ctx);
+}
+
+function addNextWebApp(files, ctx) {
   const deps = {
     "@repo/api": "workspace:*",
     "@tanstack/react-query": "^5.60.0",
@@ -2150,12 +2324,6 @@ function addWebApp(files, ctx) {
 
   add(
     files,
-    "apps/web/.env",
-    webEnv(ctx),
-  );
-
-  add(
-    files,
     "apps/web/postcss.config.mjs",
     text`
       const config = {
@@ -2187,7 +2355,7 @@ function addWebApp(files, ctx) {
 
   add(
     files,
-    "apps/web/src/app/theme.css",
+    "apps/web/src/styles/theme.css",
     text`
       :root {
         color-scheme: light;
@@ -2284,7 +2452,7 @@ function addWebApp(files, ctx) {
       @import "tailwindcss";
       @source "../**/*.{js,ts,jsx,tsx}";
 
-      @import "./theme.css";
+      @import "../styles/theme.css";
     `,
   );
 
@@ -2353,8 +2521,8 @@ function addWebApp(files, ctx) {
     `,
   );
 
-  addWebShared(files);
-  addWebRoutes(files);
+  addWebShared(files, ctx);
+  addNextWebRoutes(files);
   addWebModules(files);
 
   if (ctx.backend === "next") {
@@ -2362,13 +2530,334 @@ function addWebApp(files, ctx) {
   }
 }
 
-function addWebShared(files) {
+function addReactWebApp(files, ctx) {
+  add(
+    files,
+    "apps/web/package.json",
+    json({
+      name: "@repo/web",
+      version: "0.0.0",
+      private: true,
+      type: "module",
+      scripts: {
+        dev: "vite --host 0.0.0.0 --port 3000",
+        build: "tsc --noEmit && vite build",
+        preview: "vite preview --host 0.0.0.0 --port 3000",
+        lint: "echo \"No web lint configured\"",
+        typecheck: "tsc --noEmit",
+        clean: "rm -rf dist .turbo node_modules",
+      },
+      dependencies: {
+        "@repo/api": "workspace:*",
+        "@tanstack/react-query": "^5.60.0",
+        "@tanstack/react-router": "^1.120.5",
+        "@trpc/client": "^11.0.0",
+        "@trpc/react-query": "^11.0.0",
+        "@trpc/server": "^11.0.0",
+        "better-auth": "^1.6.11",
+        "class-variance-authority": "^0.7.0",
+        clsx: "^2.1.1",
+        "lucide-react": "^0.546.0",
+        react: "^19.0.0",
+        "react-dom": "^19.0.0",
+        superjson: "^2.2.1",
+        "tailwind-merge": "^2.5.4",
+        zod: "^3.23.0",
+      },
+      devDependencies: {
+        "@repo/typescript-config": "workspace:*",
+        "@tailwindcss/vite": "^4.0.0",
+        "@types/node": "^22.0.0",
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "@vitejs/plugin-react": "^4.5.2",
+        tailwindcss: "^4.0.0",
+        typescript: "^5.6.0",
+        vite: "^6.3.5",
+      },
+    }),
+  );
+
+  add(files, "apps/web/.env.example", webEnv(ctx));
+
+  add(
+    files,
+    "apps/web/index.html",
+    text`
+      <!doctype html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <meta name="description" content="${ctx.appTitle} admin and post app" />
+          <title>${ctx.appTitle}</title>
+        </head>
+        <body>
+          <div id="root"></div>
+          <script type="module" src="/src/main.tsx"></script>
+        </body>
+      </html>
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/tsconfig.json",
+    json({
+      extends: "@repo/typescript-config/base.json",
+      compilerOptions: {
+        target: "ESNext",
+        lib: ["DOM", "DOM.Iterable", "ESNext"],
+        jsx: "react-jsx",
+        noEmit: true,
+        baseUrl: ".",
+        paths: {
+          "@/*": ["./src/*"],
+          "~/*": ["./src/*"],
+        },
+        types: ["vite/client"],
+      },
+      include: ["src", "vite.config.ts"],
+      exclude: ["node_modules", "dist"],
+    }),
+  );
+
+  add(
+    files,
+    "apps/web/vite.config.ts",
+    text`
+      import path from "node:path";
+      import { fileURLToPath } from "node:url";
+
+      import tailwindcss from "@tailwindcss/vite";
+      import react from "@vitejs/plugin-react";
+      import { defineConfig } from "vite";
+
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+      export default defineConfig({
+        envDir: path.resolve(__dirname, "../.."),
+        plugins: [react(), tailwindcss()],
+        resolve: {
+          alias: {
+            "@": path.resolve(__dirname, "src"),
+          },
+        },
+        server: {
+          host: "0.0.0.0",
+          port: 3000,
+          strictPort: true,
+        },
+      });
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/styles/theme.css",
+    text`
+      :root {
+        color-scheme: light;
+        --background: #ffffff;
+        --foreground: #0a0a0a;
+        --muted: #f5f5f5;
+        --border: #d4d4d4;
+      }
+
+      * { box-sizing: border-box; }
+      html, body, #root { min-height: 100%; }
+      html, body { background: var(--background); color: var(--foreground); }
+      body { margin: 0; font-family: Arial, Helvetica, sans-serif; }
+      a { text-decoration: none; color: inherit; }
+
+      @layer components {
+        .ui-btn {
+          display: inline-flex;
+          height: 2.5rem;
+          min-width: 5rem;
+          align-items: center;
+          justify-content: center;
+          border-radius: 0.375rem;
+          padding-inline: 1rem;
+          font-size: 0.875rem;
+          font-weight: 600;
+          line-height: 1;
+          transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+        }
+        .ui-btn:disabled { pointer-events: none; opacity: 0.5; }
+        .ui-btn-primary { background-color: #000000; color: #ffffff; }
+        .ui-btn-primary:hover { background-color: #262626; color: #ffffff; }
+        .ui-btn-outline { border: 1px solid #d4d4d4; background-color: #ffffff; color: #000000; }
+        .ui-btn-outline:hover { background-color: #f5f5f5; color: #000000; }
+        .ui-btn-ghost { background-color: transparent; color: #000000; }
+        .ui-btn-ghost:hover { background-color: #f5f5f5; color: #000000; }
+      }
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/styles/globals.css",
+    text`
+      @import "tailwindcss";
+      @source "../**/*.{js,ts,jsx,tsx}";
+      @import "./theme.css";
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/components/providers.tsx",
+    text`
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { type ReactNode, useState } from "react";
+
+      import { createTRPCClient, trpc } from "@/trpc/client";
+
+      export function Providers({ children }: { children: ReactNode }) {
+        const [queryClient] = useState(
+          () => new QueryClient({
+            defaultOptions: {
+              queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: 1 },
+            },
+          }),
+        );
+        const [trpcClient] = useState(() => createTRPCClient());
+
+        return (
+          <trpc.Provider client={trpcClient} queryClient={queryClient}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </trpc.Provider>
+        );
+      }
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/router.tsx",
+    text`
+      import {
+        Outlet,
+        createRootRoute,
+        createRoute,
+        createRouter,
+      } from "@tanstack/react-router";
+
+      import { AdminDashboard } from "@/modules/admin/dashboard/components/admin-dashboard";
+      import { AdminPostsPage } from "@/modules/admin/posts/components/admin-posts-page";
+      import { AdminShell } from "@/modules/admin/shared/components/admin-shell";
+      import { AdminUsersPage } from "@/modules/admin/users/components/admin-users-page";
+      import { LoginPage } from "@/modules/auth/components/login-page";
+      import { PostsPage } from "@/modules/posts/components/posts-page";
+
+      const rootRoute = createRootRoute({ component: Outlet });
+      const homeRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: PostsPage });
+      const loginRoute = createRoute({ getParentRoute: () => rootRoute, path: "/login", component: LoginPage });
+      const adminRoute = createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/admin",
+        component: () => <AdminShell><Outlet /></AdminShell>,
+      });
+      const adminIndexRoute = createRoute({ getParentRoute: () => adminRoute, path: "/", component: AdminDashboard });
+      const adminPostsRoute = createRoute({ getParentRoute: () => adminRoute, path: "/posts", component: AdminPostsPage });
+      const adminUsersRoute = createRoute({ getParentRoute: () => adminRoute, path: "/users", component: AdminUsersPage });
+
+      const routeTree = rootRoute.addChildren([
+        homeRoute,
+        loginRoute,
+        adminRoute.addChildren([adminIndexRoute, adminPostsRoute, adminUsersRoute]),
+      ]);
+
+      export const router = createRouter({ routeTree });
+
+      declare module "@tanstack/react-router" {
+        interface Register {
+          router: typeof router;
+        }
+      }
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/main.tsx",
+    text`
+      import { StrictMode } from "react";
+      import { createRoot } from "react-dom/client";
+      import { RouterProvider } from "@tanstack/react-router";
+
+      import { Providers } from "@/components/providers";
+      import { router } from "@/router";
+      import "@/styles/globals.css";
+
+      const root = document.getElementById("root");
+      if (!root) throw new Error("Root element not found.");
+
+      createRoot(root).render(
+        <StrictMode>
+          <Providers>
+            <RouterProvider router={router} />
+          </Providers>
+        </StrictMode>,
+      );
+    `,
+  );
+
+  add(files, "apps/web/src/vite-env.d.ts", '/// <reference types="vite/client" />\n');
+
+  addWebShared(files, ctx);
+  addWebModules(files);
+}
+
+function addWebShared(files, ctx) {
   add(
     files,
     "apps/web/src/lib/api-url.ts",
     text`
       export function getApiBaseUrl() {
-        return (process.env.NEXT_PUBLIC_API_URL ?? "").replace(/\\/$/, "");
+        return (${ctx.frontend === "react" ? "import.meta.env.VITE_API_URL" : "process.env.NEXT_PUBLIC_API_URL"} ?? "").replace(/\\/$/, "");
+      }
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/lib/navigation.tsx",
+    text`
+      ${ctx.frontend === "react" ? 'import { Link, useNavigate } from "@tanstack/react-router";' : 'import Link from "next/link";\nimport { useRouter } from "next/navigation";'}
+      import type { ReactNode } from "react";
+
+      export function AppLink({
+        to,
+        className,
+        children,
+      }: {
+        to: string;
+        className?: string;
+        children: ReactNode;
+      }) {
+        return (
+          <Link ${ctx.frontend === "react" ? "to={to as never}" : "href={to}"} className={className}>
+            {children}
+          </Link>
+        );
+      }
+
+      export function useAppNavigation() {
+        ${ctx.frontend === "react" ? "const navigate = useNavigate();" : "const router = useRouter();"}
+
+        return {
+          navigate(to: string) {
+            ${ctx.frontend === "react" ? "void navigate({ to: to as never });" : "router.push(to);"}
+          },
+          refresh() {
+            ${ctx.frontend === "react" ? "// TanStack Query refetches route data after navigation." : "router.refresh();"}
+          },
+          getSearchParam(name: string) {
+            return new URLSearchParams(window.location.search).get(name);
+          },
+        };
       }
     `,
   );
@@ -2435,7 +2924,7 @@ function addWebShared(files) {
                 });
               },
               headers: () => ({
-                "x-trpc-source": "nextjs-react",
+                "x-trpc-source": "${ctx.frontend === "react" ? "vite-react" : "nextjs-react"}",
               }),
             }),
           ],
@@ -2561,7 +3050,7 @@ function addWebShared(files) {
   );
 }
 
-function addWebRoutes(files) {
+function addNextWebRoutes(files) {
   add(
     files,
     "apps/web/src/app/page.tsx",
@@ -2642,21 +3131,17 @@ function addWebRoutes(files) {
 function addWebModules(files) {
   add(
     files,
-    "apps/web/src/modules/auth/components/login-page.tsx",
+    "apps/web/src/modules/auth/hooks/use-auth-view-model.ts",
     text`
       "use client";
 
-      import { useRouter, useSearchParams } from "next/navigation";
       import { useState } from "react";
 
-      import { Button } from "@/components/ui/button";
-      import { Card } from "@/components/ui/card";
-      import { Input } from "@/components/ui/input";
       import { authClient } from "@/lib/auth-client";
+      import { useAppNavigation } from "@/lib/navigation";
 
-      export function LoginPage() {
-        const router = useRouter();
-        const searchParams = useSearchParams();
+      export function useAuthViewModel() {
+        const navigation = useAppNavigation();
         const [mode, setMode] = useState<"login" | "register">("login");
         const [name, setName] = useState("");
         const [email, setEmail] = useState("");
@@ -2664,28 +3149,26 @@ function addWebModules(files) {
         const [errorMessage, setErrorMessage] = useState<string | null>(null);
         const [isPending, setIsPending] = useState(false);
 
-        async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
-          event.preventDefault();
+        async function submit() {
           setErrorMessage(null);
           setIsPending(true);
 
           try {
-            const result =
-              mode === "login"
-                ? await authClient.signIn.email({ email, password })
-                : await authClient.signUp.email({
-                    email,
-                    password,
-                    name: name.trim() || email.split("@")[0] || "User",
-                  });
+            const result = mode === "login"
+              ? await authClient.signIn.email({ email, password })
+              : await authClient.signUp.email({
+                  email,
+                  password,
+                  name: name.trim() || email.split("@")[0] || "User",
+                });
 
             if (result.error) {
               setErrorMessage(result.error.message || "Authentication failed.");
               return;
             }
 
-            router.push(searchParams.get("callbackUrl") || "/");
-            router.refresh();
+            navigation.navigate(navigation.getSearchParam("callbackUrl") || "/");
+            navigation.refresh();
           } catch (error) {
             setErrorMessage(
               error instanceof Error ? error.message : "Authentication failed.",
@@ -2695,52 +3178,83 @@ function addWebModules(files) {
           }
         }
 
+        return {
+          mode,
+          setMode,
+          name,
+          setName,
+          email,
+          setEmail,
+          password,
+          setPassword,
+          errorMessage,
+          isPending,
+          submit,
+        };
+      }
+    `,
+  );
+
+  add(
+    files,
+    "apps/web/src/modules/auth/components/login-page.tsx",
+    text`
+      "use client";
+
+      import { Button } from "@/components/ui/button";
+      import { Card } from "@/components/ui/card";
+      import { Input } from "@/components/ui/input";
+      import { useAuthViewModel } from "../hooks/use-auth-view-model";
+
+      export function LoginPage() {
+        const vm = useAuthViewModel();
+
         return (
           <main className="flex min-h-screen items-center justify-center bg-white p-6 text-black">
             <Card className="w-full max-w-md p-6">
               <div className="mb-6 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
-                  {mode === "login" ? "Welcome back" : "Create account"}
+                  {vm.mode === "login" ? "Welcome back" : "Create account"}
                 </p>
                 <h1 className="text-2xl font-semibold">Sign in to your workspace</h1>
               </div>
 
-              <form onSubmit={onSubmit} className="space-y-4">
-                {mode === "register" ? (
+              <form onSubmit={(event) => { event.preventDefault(); void vm.submit(); }} className="space-y-4">
+                {vm.mode === "register" ? (
                   <Input
-                    value={name}
-                    onChange={(event) => setName(event.target.value)}
+                    value={vm.name}
+                    onChange={(event) => vm.setName(event.target.value)}
                     placeholder="Name"
                   />
                 ) : null}
                 <Input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  value={vm.email}
+                  onChange={(event) => vm.setEmail(event.target.value)}
                   placeholder="Email"
                   type="email"
                 />
                 <Input
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  value={vm.password}
+                  onChange={(event) => vm.setPassword(event.target.value)}
                   placeholder="Password"
                   type="password"
                 />
-                {errorMessage ? (
+                {vm.errorMessage ? (
                   <p className="rounded-md border border-neutral-300 bg-neutral-50 p-3 text-sm text-neutral-800">
-                    {errorMessage}
+                    {vm.errorMessage}
                   </p>
                 ) : null}
-                <Button type="submit" className="w-full" disabled={isPending}>
-                  {isPending ? "Please wait..." : mode === "login" ? "Sign in" : "Create account"}
+                <Button type="submit" className="w-full" disabled={vm.isPending}>
+                  {vm.isPending ? "Please wait..." : vm.mode === "login" ? "Sign in" : "Create account"}
                 </Button>
               </form>
 
               <Button
                 variant="ghost"
                 className="mt-4 w-full"
-                onClick={() => setMode(mode === "login" ? "register" : "login")}
+                onClick={() => vm.setMode(vm.mode === "login" ? "register" : "login")}
               >
-                {mode === "login" ? "Create a new account" : "Use an existing account"}
+                {vm.mode === "login" ? "Create a new account" : "Use an existing account"}
               </Button>
             </Card>
           </main>
@@ -2757,6 +3271,7 @@ function addWebModules(files) {
 
       import { useState } from "react";
 
+      import { authClient } from "@/lib/auth-client";
       import { getApiBaseUrl } from "@/lib/api-url";
       import { trpc } from "@/trpc/client";
 
@@ -2823,6 +3338,12 @@ function addWebModules(files) {
           }
         }
 
+        async function signOut() {
+          await authClient.signOut();
+          await utils.user.me.invalidate();
+          await meQuery.refetch();
+        }
+
         return {
           posts: postsQuery.data?.posts ?? [],
           isLoading: postsQuery.isLoading,
@@ -2835,6 +3356,7 @@ function addWebModules(files) {
           errorMessage,
           isCreating: createMutation.isPending,
           createPost,
+          signOut,
         };
       }
     `,
@@ -2846,23 +3368,16 @@ function addWebModules(files) {
     text`
       "use client";
 
-      import Link from "next/link";
-
       import { Button, buttonClassName } from "@/components/ui/button";
       import { Card } from "@/components/ui/card";
       import { Input } from "@/components/ui/input";
       import { Textarea } from "@/components/ui/textarea";
-      import { authClient } from "@/lib/auth-client";
+      import { AppLink } from "@/lib/navigation";
 
       import { usePostsViewModel } from "../hooks/use-posts-view-model";
 
       export function PostsPage() {
         const vm = usePostsViewModel();
-
-        async function signOut() {
-          await authClient.signOut();
-          window.location.reload();
-        }
 
         return (
           <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-8 text-black">
@@ -2874,17 +3389,17 @@ function addWebModules(files) {
                 <h1 className="text-3xl font-semibold">Posts</h1>
               </div>
               <nav className="flex gap-2">
-                <Link href="/admin" className={buttonClassName("outline")}>
+                <AppLink to="/admin" className={buttonClassName("outline")}>
                   Admin
-                </Link>
+                </AppLink>
                 {vm.isAuthed ? (
-                  <Button variant="ghost" onClick={signOut}>
+                  <Button variant="ghost" onClick={vm.signOut}>
                     Sign out
                   </Button>
                 ) : (
-                  <Link href="/login" className={buttonClassName()}>
+                  <AppLink to="/login" className={buttonClassName()}>
                     Sign in
-                  </Link>
+                  </AppLink>
                 )}
               </nav>
             </header>
@@ -2929,9 +3444,9 @@ function addWebModules(files) {
                     <p className="text-sm text-neutral-600">
                       Sign in before creating a post or uploading an image.
                     </p>
-                    <Link href="/login" className={buttonClassName()}>
+                    <AppLink to="/login" className={buttonClassName()}>
                       Sign in
-                    </Link>
+                    </AppLink>
                   </div>
                 )}
               </Card>
@@ -2974,10 +3489,9 @@ function addWebModules(files) {
     text`
       "use client";
 
-      import Link from "next/link";
-
       import { Button, buttonClassName } from "@/components/ui/button";
       import { authClient } from "@/lib/auth-client";
+      import { AppLink } from "@/lib/navigation";
       import { trpc } from "@/trpc/client";
 
       function isDashboardRole(role: string | null | undefined) {
@@ -3008,9 +3522,9 @@ function addWebModules(files) {
               <p className="text-sm text-neutral-600">
                 Sign in with an admin, owner, manager, or staff account.
               </p>
-              <Link href="/login?callbackUrl=/admin" className={buttonClassName()}>
+              <AppLink to="/login?callbackUrl=/admin" className={buttonClassName()}>
                 Sign in
-              </Link>
+              </AppLink>
             </main>
           );
         }
@@ -3018,27 +3532,27 @@ function addWebModules(files) {
         return (
           <div className="min-h-screen bg-white text-black">
             <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-neutral-200 p-5 md:block">
-              <Link href="/" className="text-lg font-semibold">
+              <AppLink to="/" className="text-lg font-semibold">
                 Ranger
-              </Link>
+              </AppLink>
               <nav className="mt-8 grid gap-2 text-sm">
-                <Link className="rounded-md px-3 py-2 hover:bg-neutral-100" href="/admin">
+                <AppLink className="rounded-md px-3 py-2 hover:bg-neutral-100" to="/admin">
                   Dashboard
-                </Link>
-                <Link className="rounded-md px-3 py-2 hover:bg-neutral-100" href="/admin/posts">
+                </AppLink>
+                <AppLink className="rounded-md px-3 py-2 hover:bg-neutral-100" to="/admin/posts">
                   Posts
-                </Link>
-                <Link className="rounded-md px-3 py-2 hover:bg-neutral-100" href="/admin/users">
+                </AppLink>
+                <AppLink className="rounded-md px-3 py-2 hover:bg-neutral-100" to="/admin/users">
                   Users
-                </Link>
+                </AppLink>
               </nav>
             </aside>
             <div className="md:pl-64">
               <header className="flex h-16 items-center justify-between border-b border-neutral-200 px-6">
                 <div className="flex gap-3 text-sm md:hidden">
-                  <Link href="/admin">Dashboard</Link>
-                  <Link href="/admin/posts">Posts</Link>
-                  <Link href="/admin/users">Users</Link>
+                  <AppLink to="/admin">Dashboard</AppLink>
+                  <AppLink to="/admin/posts">Posts</AppLink>
+                  <AppLink to="/admin/users">Users</AppLink>
                 </div>
                 <div className="ml-auto flex items-center gap-3">
                   <span className="text-sm text-neutral-600">{adminUser.email}</span>
@@ -3480,12 +3994,6 @@ function addMobileApp(files, ctx) {
   add(
     files,
     "apps/mobile/.env.example",
-    mobileEnv(ctx),
-  );
-
-  add(
-    files,
-    "apps/mobile/.env",
     mobileEnv(ctx),
   );
 
@@ -4477,7 +4985,7 @@ function addExpressServer(files, ctx) {
       type: "module",
       scripts: {
         dev: "tsx watch src/index.ts",
-        build: "tsc",
+        build: "tsup",
         start: "node dist/index.js",
         lint: "echo \"No server lint configured\"",
         typecheck: "tsc --noEmit",
@@ -4501,6 +5009,7 @@ function addExpressServer(files, ctx) {
         "@types/multer": "^1.4.12",
         "@types/node": "^22.0.0",
         tsx: "^4.19.2",
+        tsup: "^8.3.5",
         typescript: "^5.6.0",
       },
     }),
@@ -4512,10 +5021,7 @@ function addExpressServer(files, ctx) {
     json({
       extends: "@repo/typescript-config/base.json",
       compilerOptions: {
-        outDir: "dist",
-        rootDir: "src",
-        noEmit: false,
-        declaration: false,
+        noEmit: true,
       },
       include: ["src/**/*.ts"],
       exclude: ["node_modules"],
@@ -4524,13 +5030,27 @@ function addExpressServer(files, ctx) {
 
   add(
     files,
-    "apps/server/.env.example",
-    serverEnv(ctx),
+    "apps/server/tsup.config.ts",
+    text`
+      import { defineConfig } from "tsup";
+
+      export default defineConfig({
+        entry: ["src/index.ts"],
+        format: ["esm"],
+        platform: "node",
+        target: "node20",
+        bundle: true,
+        clean: true,
+        sourcemap: true,
+        splitting: false,
+        noExternal: ["@repo/api", "@repo/auth", "@repo/db"],
+      });
+    `,
   );
 
   add(
     files,
-    "apps/server/.env",
+    "apps/server/.env.example",
     serverEnv(ctx),
   );
 
@@ -5455,6 +5975,7 @@ VITE_API_URL="http://localhost:${ctx.apiPort}"
   "devDependencies": {
     "@repo/typescript-config": "workspace:*",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.5.2",
@@ -5464,13 +5985,6 @@ VITE_API_URL="http://localhost:${ctx.apiPort}"
   }
 }
 
-`,
-  );
-  add(
-    files,
-    "apps/desktop/frontend/package.json.md5",
-    text`
-b63b6aabddeafbb99bffd65044143159
 `,
   );
   add(
@@ -6141,52 +6655,38 @@ createRoot(container!).render(
   );
   add(
     files,
-    "apps/desktop/frontend/src/shims/next-link.tsx",
+    "apps/desktop/frontend/src/lib/navigation.tsx",
     text`
-import { forwardRef, type AnchorHTMLAttributes, type ReactNode } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import type { ReactNode } from "react";
 
-type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
-  href: string;
-  children?: ReactNode;
-};
-
-const Link = forwardRef<HTMLAnchorElement, LinkProps>(
-  ({ href, children, ...props }, ref) => (
-    <RouterLink ref={ref} to={href} {...props}>
-      {children}
-    </RouterLink>
-  ),
-);
-
-Link.displayName = "Link";
-
-export default Link;
-
-`,
-  );
-  add(
-    files,
-    "apps/desktop/frontend/src/shims/next-navigation.ts",
-    text`
-import { useNavigate, useSearchParams as useRouterSearchParams } from "react-router-dom";
-
-export function useRouter() {
-  const navigate = useNavigate();
-
-  return {
-    push: (url: string) => {
-      navigate(url);
-    },
-    refresh: () => {
-      navigate(0);
-    },
-  };
+export function AppLink({
+  to,
+  className,
+  children,
+}: {
+  to: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return <Link to={to} className={className}>{children}</Link>;
 }
 
-export function useSearchParams() {
-  const [params] = useRouterSearchParams();
-  return params;
+export function useAppNavigation() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  return {
+    navigate(to: string) {
+      navigate(to);
+    },
+    refresh() {
+      // Route queries refresh when the destination mounts.
+    },
+    getSearchParam(name: string) {
+      return new URLSearchParams(location.search).get(name);
+    },
+  };
 }
 
 `,
@@ -6232,7 +6732,7 @@ body {
 @source "../../../web/src";
 @source "./";
 
-@import "../../../web/src/app/theme.css";
+@import "../../../web/src/styles/theme.css";
 
 `,
   );
@@ -6304,11 +6804,11 @@ export function createTRPCClient() {
     "allowImportingTsExtensions": true,
     "noEmit": true,
     "isolatedModules": true,
+    "types": ["node", "vite/client"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["../../web/src/*"],
-      "next/link": ["./src/shims/next-link.tsx"],
-      "next/navigation": ["./src/shims/next-navigation.ts"]
+      "@/lib/navigation": ["./src/lib/navigation.tsx"]
     }
   },
   "include": ["src", "../../web/src"]
@@ -6348,11 +6848,13 @@ import { defineConfig, loadEnv } from "vite";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const webSrc = path.resolve(__dirname, "../../web/src");
 const desktopSrc = path.resolve(__dirname, "src");
+const rootEnvDir = path.resolve(__dirname, "../../..");
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, __dirname, "");
+  const env = loadEnv(mode, rootEnvDir, "");
 
   return {
+    envDir: rootEnvDir,
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: [
@@ -6365,6 +6867,10 @@ export default defineConfig(({ mode }) => {
           replacement: path.resolve(desktopSrc, "lib/auth-headers.ts"),
         },
         {
+          find: "@/lib/navigation",
+          replacement: path.resolve(desktopSrc, "lib/navigation.tsx"),
+        },
+        {
           find: "@/trpc/client",
           replacement: path.resolve(desktopSrc, "trpc/client.tsx"),
         },
@@ -6372,19 +6878,11 @@ export default defineConfig(({ mode }) => {
           find: "@",
           replacement: webSrc,
         },
-        {
-          find: "next/link",
-          replacement: path.resolve(desktopSrc, "shims/next-link.tsx"),
-        },
-        {
-          find: "next/navigation",
-          replacement: path.resolve(desktopSrc, "shims/next-navigation.ts"),
-        },
       ],
     },
     define: {
       "process.env.NEXT_PUBLIC_API_URL": JSON.stringify(
-        env.VITE_API_URL ?? "http://localhost:4000",
+        process.env.VITE_API_URL ?? env.VITE_API_URL ?? "http://localhost:4000",
       ),
     },
     server: {
@@ -7172,7 +7670,7 @@ func main() {
     text`
 # ${ctx.appTitle} Desktop
 
-Wails desktop app for the ${ctx.appTitle} monorepo. The UI is reused from \`apps/web\` through Vite path aliases and small Next.js shims for routing.
+Wails desktop app for the ${ctx.appTitle} monorepo. The UI is reused from \`apps/web\` through Vite path aliases and a framework-neutral navigation adapter.
 
 ## Prerequisites
 
@@ -7200,7 +7698,7 @@ Or run both together:
 pnpm dev:desktop:all
 \`\`\`
 
-Optional: copy \`frontend/.env.example\` to \`frontend/.env\` if the API is not on \`http://localhost:${ctx.apiPort}\`.
+If the API is not on \`http://localhost:${ctx.apiPort}\`, update \`VITE_API_URL\` in the monorepo root \`.env\`.
 
 ## Build
 
@@ -7250,7 +7748,10 @@ async function main() {
   const files = createFiles(ctx);
   await writeFiles(ctx, files);
 
-  if (ctx.includeDesktop) {
+  if (
+    ctx.includeDesktop &&
+    process.env.RANGER_SKIP_DESKTOP_SETUP !== "1"
+  ) {
     console.log("");
     console.log("Setting up Go and Wails for the desktop app...");
     try {
@@ -7273,6 +7774,19 @@ async function main() {
   if (ctx.includeDesktop) {
     console.log("Desktop app uses Go + Wails. Setup runs automatically when possible.");
   }
+  if (ctx.includeWeb) {
+    console.log(
+      "Web frontend: " +
+        (ctx.frontend === "react"
+          ? "React + Vite + TanStack Router"
+          : "Next.js App Router"),
+    );
+  }
+  console.log(
+    "API server: " +
+      backendLabel(ctx.backend) +
+      (ctx.backend === "express" ? " (apps/server)" : " (apps/web)"),
+  );
   console.log("");
   console.log("Next steps:");
   const relativeTarget = path.relative(process.cwd(), ctx.targetDir);
@@ -7281,7 +7795,7 @@ async function main() {
       ? relativeTarget
       : ctx.targetDir;
   console.log("  cd " + cdTarget);
-  console.log("  cp .env.example .env");
+  console.log("  # update BETTER_AUTH_SECRET and SEED_ADMIN_PASSWORD in .env");
   console.log("  pnpm install");
   console.log("  pnpm db:reset   # type yes to drop/recreate the local database");
   console.log("  pnpm db:push");

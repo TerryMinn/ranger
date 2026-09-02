@@ -12,7 +12,7 @@
 
 <p align="center">
   <strong>Generate a full-stack monorepo in one command.</strong><br />
-  Next.js · Expo · Wails · tRPC · Better Auth · Prisma · Turbo
+  Next.js or React + Vite · Expo · Wails · tRPC · Better Auth · Prisma · Turbo
 </p>
 
 <p align="center">
@@ -67,7 +67,7 @@ pnpm install
 
 # 3. Set secrets, create the database, then seed
 #    - BETTER_AUTH_SECRET in .env
-#    - SEED_ADMIN_PASSWORD in packages/db/.env
+#    - SEED_ADMIN_PASSWORD in the root .env
 pnpm db:reset    # type "yes" when prompted
 pnpm db:push
 pnpm db:seed
@@ -110,10 +110,10 @@ Every generated project includes:
 | API | Shared `@repo/api` package with tRPC routers |
 | Auth | Better Auth with Prisma adapter, admin plugin, Expo support |
 | Database | Prisma + PostgreSQL (Better Auth models + `Post` model) |
-| Web (optional) | Next.js 15 App Router, shadcn-style black & white UI |
+| Web (optional) | Next.js App Router **or** React + Vite + TanStack Router |
 | Mobile (optional) | Expo Router, React Native `StyleSheet` only |
-| Desktop (optional) | Wails v2 app reusing the Next.js web UI via Vite |
-| Backend | **Next.js API routes** or **Express server** |
+| Desktop (optional) | Wails v2 app reusing framework-neutral web features via Vite |
+| Backend | **Next.js server + tRPC** or **Express server + tRPC** |
 | Tooling | Shared TypeScript config, Prettier, Cursor rules |
 
 ### Built-in features
@@ -155,7 +155,7 @@ npx create-ranger my-app
 Pin a version:
 
 ```bash
-npx create-ranger@1.0.7 my-app
+npx create-ranger@1.2.0 my-app
 ```
 
 ### 2. `npm create`
@@ -200,6 +200,15 @@ cd ranger
 node ./bin/ranger.js my-app
 ```
 
+To use the local source as a global command without publishing it to npm:
+
+```bash
+npm link
+create-ranger my-app
+```
+
+`npm link` creates a global symlink, so later changes in this repository are reflected immediately. Remove it with `npm unlink -g create-ranger`.
+
 ### Command cheat sheet
 
 | Goal | Command |
@@ -233,11 +242,13 @@ You will be asked:
 
 1. **Project name** — becomes the folder name and `package.json` name (kebab-case)
 2. **Include Expo mobile app?** — `Y/n`
-3. **Include Next.js web/admin app?** — `Y/n`
-4. **Include Wails desktop app?** — `y/N`
-5. **Backend server** — choose one (defaults to Express when desktop is enabled):
-   - `Next.js API routes + tRPC`
-   - `Express server + tRPC`
+3. **Include web/admin app?** — `Y/n`
+4. **Web frontend** — choose `Next.js App Router` or `React + Vite + TanStack Router`
+5. **Include Wails desktop app?** — `y/N`
+6. **Backend server**:
+   - With Next.js, choose `Next.js server + tRPC` or `Express server + tRPC`.
+   - With React + Vite, Ranger automatically creates `Express server + tRPC` and connects the frontend to it.
+   - Wails desktop also requires the Express + tRPC server.
 
 Ranger writes the project into `./<project-name>` relative to your current directory.
 
@@ -255,14 +266,17 @@ ranger <project-name> [options]
 | --- | --- |
 | `--yes`, `-y` | Skip prompts; use defaults |
 | `--force`, `-f` | Overwrite generated files in a non-empty target directory |
-| `--web` | Include the Next.js web/admin app |
+| `--web` | Include the web/admin app |
 | `--no-web` | Exclude the web app (Express backend only) |
 | `--mobile` | Include the Expo mobile app |
 | `--no-mobile` | Exclude the mobile app |
 | `--desktop` | Include the Wails desktop app |
 | `--no-desktop` | Exclude the desktop app |
-| `--backend next` | Use Next.js API routes for auth, tRPC, and uploads |
-| `--backend express` | Use a standalone Express server on port `4000` |
+| `--frontend next\|react` | Select the web frontend |
+| `--next`, `--nextjs` | Select Next.js and enable web |
+| `--react` | Select React + Vite + TanStack Router and enable web |
+| `--backend next` | Use the Next.js server for auth, tRPC, and uploads |
+| `--backend express` | Use the Express + tRPC server on port `4000` |
 | `--backend=express` | Same as `--backend express` |
 
 ### Examples
@@ -271,6 +285,12 @@ ranger <project-name> [options]
 
 ```bash
 npx create-ranger my-app --yes --web --mobile --desktop --backend express
+```
+
+**React + Vite + TanStack Router (Express + tRPC is automatic):**
+
+```bash
+npx create-ranger my-app --yes --react --mobile
 ```
 
 **Web + desktop with Express API:**
@@ -303,13 +323,16 @@ npx create-ranger my-app --yes --web --mobile --backend express --force
 | --- | --- |
 | Project name | `my-ranger-app` (if not provided) |
 | Web app | enabled |
+| Web frontend | Next.js App Router |
 | Mobile app | enabled |
 | Desktop app | disabled |
-| Backend | `next` (or `express` when `--desktop` is passed) |
+| Backend | `next`; automatically `express` with React, desktop, or `--no-web` |
 
 > **Note:** Choosing `--backend next` always enables the web app, because Next.js hosts the API routes.
 
 > **Note:** The desktop app requires the web app and an Express backend. It reuses `apps/web` through Vite aliases and calls the API via `VITE_API_URL`.
+
+> **Note:** React + Vite always uses the Express backend. Next.js can use Next.js route handlers or Express.
 
 ---
 
@@ -317,7 +340,7 @@ npx create-ranger my-app --yes --web --mobile --backend express --force
 
 Ranger supports two backend architectures. Pick the one that matches how you want to deploy.
 
-### `next` — Next.js API routes
+### `next` — Next.js server + tRPC
 
 ```
 Browser / Mobile  →  Next.js (port 3000)
@@ -330,7 +353,7 @@ Browser / Mobile  →  Next.js (port 3000)
 - `NEXT_PUBLIC_API_URL` is empty — clients use same-origin requests
 - Best for: web-first apps, Vercel-style deployments, simpler local dev
 
-### `express` — Standalone Express server
+### `express` — Express server + tRPC
 
 ```
 Web (3000)  ──→  Express API (4000)
@@ -340,7 +363,7 @@ Mobile      ──→       ├── /api/auth/*
 ```
 
 - Web and API run as separate processes
-- `NEXT_PUBLIC_API_URL=http://localhost:4000` in `apps/web/.env`
+- `NEXT_PUBLIC_API_URL=http://localhost:4000` (Next) or `VITE_API_URL=http://localhost:4000` (React) in the root `.env`
 - Best for: mobile + web combos, custom server middleware, traditional API deployment
 
 | | Next backend | Express backend |
@@ -357,7 +380,7 @@ Mobile      ──→       ├── /api/auth/*
 ```
 my-app/
 ├── apps/
-│   ├── web/                 # Next.js admin + public app (if enabled)
+│   ├── web/                 # Next.js or React/Vite admin + public app
 │   ├── mobile/              # Expo app (if enabled)
 │   ├── desktop/             # Wails desktop app (if enabled)
 │   └── server/              # Express API (express backend only)
@@ -370,7 +393,7 @@ my-app/
 ├── scripts/
 │   └── reset-database.sh    # creates local Postgres DB from project name
 ├── .cursor/rules/           # architecture rules for Cursor AI
-├── .env                     # root env (reference)
+├── .env                     # single local environment source of truth
 ├── turbo.json
 ├── pnpm-workspace.yaml
 └── package.json
@@ -402,21 +425,22 @@ pnpm install
 
 ### 1. Configure secrets
 
-Open `.env` and set a real auth secret:
+Open the generated root `.env` and set the auth and seed secrets. Root `.env` is the single local environment source of truth:
 
 ```env
 BETTER_AUTH_SECRET="use-a-long-random-string-at-least-32-chars"
+SEED_ADMIN_PASSWORD="use-a-strong-local-password"
 ```
 
-Ranger also writes scoped env files where each runtime needs them:
+Scoped `.env.example` files document runtime-specific variables. Root scripts load the root `.env` into every app:
 
 | File | Used by |
 | --- | --- |
-| `packages/db/.env` | Prisma CLI |
-| `apps/web/.env` | Next.js |
-| `apps/server/.env` | Express (express backend only) |
-| `apps/mobile/.env` | Expo |
-| `apps/desktop/frontend/.env` | Wails desktop (`VITE_API_URL`) |
+| `packages/db/.env.example` | Prisma CLI reference |
+| `apps/web/.env.example` | Next.js or Vite client variables |
+| `apps/server/.env.example` | Express reference |
+| `apps/mobile/.env.example` | Expo reference |
+| `apps/desktop/frontend/.env.example` | Wails desktop reference |
 
 ### 2. Create the database
 
@@ -428,7 +452,7 @@ Type `yes` when prompted. This script:
 
 - reads your `package.json` name
 - creates a matching PostgreSQL database (e.g. `my_app`)
-- updates `DATABASE_URL` across all env files
+- updates `DATABASE_URL` in the root `.env`
 - links `packages/db/.env` to the root `.env`
 
 ### 3. Push schema & seed data
@@ -492,7 +516,7 @@ EXPO_PUBLIC_API_PORT="4000"
 
 ### Physical device testing (Expo)
 
-Update `apps/mobile/.env` with your machine's LAN IP:
+Update `EXPO_PUBLIC_API_URL` in the root `.env` with your machine's LAN IP:
 
 ```env
 EXPO_PUBLIC_API_URL="http://192.168.1.10:4000"
@@ -510,7 +534,7 @@ Ranger encodes opinionated structure so teams (and AI assistants) stay consisten
 
 ```
 src/
-├── app/              # thin route files only
+├── app/ or router.tsx # thin Next.js or TanStack route definitions
 ├── modules/
 │   ├── posts/        # public feature
 │   ├── auth/         # login/signup
@@ -532,12 +556,12 @@ src/features/         # MVVM-style feature modules
 ### Desktop (`apps/desktop`)
 
 ```
-frontend/src/         # Vite shell, auth storage, Next.js shims
+frontend/src/         # Vite shell, auth storage, navigation adapter
 apps/web/src/         # reused UI modules via Vite aliases
 ```
 
 - Wails v2 wraps a Vite + React Router frontend
-- Reuses web modules from `apps/web/src` (posts, auth, admin)
+- Reuses framework-neutral web modules from `apps/web/src` (posts, auth, admin)
 - Persists Better Auth session data through Go bindings
 - Talks to the Express API at `VITE_API_URL` (default `http://localhost:4000`)
 
@@ -583,8 +607,11 @@ Every project ships `.cursor/rules/`:
 | --- | --- |
 | `api/api.mdc` | tRPC procedure auth levels, Zod validation, error handling |
 | `database/database-rule.mdc` | Prisma schema conventions |
-| `web-arch/web-arch.mdc` | Next.js module layout |
+| `web-arch/nextjs.mdc` | Next.js module and desktop-compatibility rules |
+| `web-arch/react-vite.mdc` | React/Vite, TanStack Router, Query, and MVVM rules |
 | `mobile-arch/mobile-arch.mdc` | Expo MVVM + StyleSheet-only UI |
+| `server-arch/server-arch.mdc` | Express transport and production bundle boundaries |
+| `desktop-arch/desktop-arch.mdc` | Wails/web reuse and authentication constraints |
 
 These rules are loaded automatically in Cursor to keep generated code aligned with the scaffold's architecture.
 
@@ -619,10 +646,11 @@ ln -sf ../../.env packages/db/.env
 
 ### Web shows `post.getAll` / `user.me` errors (Express backend)
 
-The web app is calling Next.js instead of the API server. Check `apps/web/.env`:
+The web app is calling the wrong origin instead of the Express API. Check the root `.env`:
 
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:4000"
+VITE_API_URL="http://localhost:4000"
 ```
 
 Then restart:
@@ -657,7 +685,7 @@ brew install postgresql@17
 
 - iOS Simulator: use `http://127.0.0.1:4000` or `http://localhost:4000`
 - Android Emulator: code auto-uses `10.0.2.2`
-- Physical device: use your Mac's LAN IP in `apps/mobile/.env`
+- Physical device: use your Mac's LAN IP for `EXPO_PUBLIC_API_URL` in the root `.env`
 
 ---
 
@@ -674,19 +702,70 @@ Ranger is a single file: `bin/ranger.js`.
 
 There are no runtime dependencies. The generated app dependencies are installed separately via `pnpm install` inside the new project.
 
-The Wails desktop app lives in `addDesktopApp()` inside `bin/ranger.js`, same pattern as `addWebApp()` and `addMobileApp()`. When `window-test/apps/desktop` changes, regenerate the embed:
+The Wails desktop app lives in `addDesktopApp()` inside `bin/ranger.js`, same pattern as `addWebApp()` and `addMobileApp()`. To refresh the embedded desktop template from an explicitly selected source directory:
 
 ```bash
-pnpm run generate:desktop-app
+pnpm run generate:desktop-app -- /absolute/path/to/apps/desktop
 ```
 
 ### Smoke test (maintainers)
 
 ```bash
-pnpm run smoke
+pnpm run smoke             # fast static generation matrix
+pnpm run verify:generated  # install, typecheck, and build every variant
 ```
 
-Generates a test project at `/private/tmp/ranger-smoke` with web, mobile, desktop, and Express backend.
+The matrix covers Next.js with either Next or Express/tRPC servers, React/Vite with its automatic Express/tRPC server, React/Vite + Wails, and Next.js + Wails projects.
+
+### Publish to npm (maintainers)
+
+`create-ranger` is an unscoped public package. Every release must use a version that has not already been published.
+
+```bash
+cd /path/to/ranger
+
+# Sign in and confirm the npm account
+npm login
+npm whoami
+
+# Compare the registry version with package.json
+npm view create-ranger version
+npm pkg get version
+```
+
+If `package.json` still needs a version bump, choose the appropriate SemVer change. Skip this step when it already contains the intended new version.
+
+```bash
+npm version patch --no-git-tag-version  # bug fixes
+npm version minor --no-git-tag-version  # backward-compatible features
+npm version major --no-git-tag-version  # breaking changes
+```
+
+Run the release checks and inspect exactly what npm will include:
+
+```bash
+pnpm test
+pnpm verify:generated
+npm pack --dry-run
+npm publish --dry-run
+```
+
+Publish only after those commands pass and the package contents look correct:
+
+```bash
+npm publish
+npm view create-ranger version
+```
+
+Publishing requires npm account 2FA or a suitable granular access token. When using interactive 2FA, `npm publish` prompts for the one-time password. The `prepublishOnly` script runs `pnpm test` again automatically before upload.
+
+If npm reports `EPERM` because the default cache contains root-owned files, fix that cache's ownership or temporarily use a writable cache:
+
+```bash
+npm --cache /tmp/create-ranger-npm-cache login
+npm --cache /tmp/create-ranger-npm-cache publish --dry-run
+npm --cache /tmp/create-ranger-npm-cache publish
+```
 
 ---
 

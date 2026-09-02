@@ -1,12 +1,12 @@
 {
   "name": "create-ranger",
-  "version": "1.1.0",
-  "description": "Scaffold production-ready monorepos with Next.js, Expo, tRPC, Better Auth, and Prisma.",
+  "version": "1.2.0",
+  "description": "Scaffold production-ready monorepos with Next.js or React/Vite, Expo, tRPC, Better Auth, and Prisma.",
   "type": "module",
   "bin": {
-    "create-ranger": "./bin/ranger.js",
-    "ranger": "./bin/ranger.js",
-    "renger": "./bin/ranger.js"
+    "create-ranger": "bin/ranger.js",
+    "ranger": "bin/ranger.js",
+    "renger": "bin/ranger.js"
   },
   "files": [
     "bin",
@@ -18,8 +18,10 @@
   "scripts": {
     "check": "node --check ./bin/ranger.js",
     "generate:desktop-app": "node ./scripts/generate-desktop-app.mjs",
-    "smoke": "node ./bin/ranger.js /private/tmp/ranger-smoke --yes --web --mobile --desktop --backend express --force",
-    "prepublishOnly": "pnpm run check"
+    "smoke": "node ./scripts/smoke-test.mjs",
+    "verify:generated": "RANGER_SMOKE_INSTALL=1 node ./scripts/smoke-test.mjs",
+    "test": "pnpm run check && pnpm run smoke",
+    "prepublishOnly": "pnpm run test"
   },
   "keywords": [
     "ranger",
@@ -28,6 +30,8 @@
     "create-app",
     "monorepo",
     "nextjs",
+    "vite",
+    "tanstack-router",
     "expo",
     "trpc",
     "better-auth",

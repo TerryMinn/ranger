@@ -12,7 +12,7 @@
 
 <p align="center">
   <strong>Command တစ်ခုတည်းနဲ့ full-stack monorepo တစ်ခုလုံး generate လုပ်ပါ။</strong><br />
-  Next.js · Expo · Wails · tRPC · Better Auth · Prisma · Turbo
+  Next.js သို့မဟုတ် React + Vite · Expo · Wails · tRPC · Better Auth · Prisma · Turbo
 </p>
 
 <p align="center">
@@ -67,7 +67,7 @@ pnpm install
 
 # 3. Secrets သတ်မှတ်၊ database ဖန်တီး၊ seed လုပ်
 #    - .env ထဲ BETTER_AUTH_SECRET
-#    - packages/db/.env ထဲ SEED_ADMIN_PASSWORD
+#    - root .env ထဲ SEED_ADMIN_PASSWORD
 pnpm db:reset    # prompt မှာ "yes" ရိုက်ပါ
 pnpm db:push
 pnpm db:seed
@@ -110,10 +110,10 @@ Generate လုပ်ထားတဲ့ project တိုင်းမှာ ပ�
 | API | Shared `@repo/api` package with tRPC routers |
 | Auth | Better Auth with Prisma adapter, admin plugin, Expo support |
 | Database | Prisma + PostgreSQL (Better Auth models + `Post` model) |
-| Web (optional) | Next.js 15 App Router, shadcn-style black & white UI |
+| Web (optional) | Next.js App Router **သို့မဟုတ်** React + Vite + TanStack Router |
 | Mobile (optional) | Expo Router, React Native `StyleSheet` only |
-| Desktop (optional) | Wails v2 app — Next.js web UI ကို Vite နဲ့ ပြန်သုံး |
-| Backend | **Next.js API routes** or **Express server** |
+| Desktop (optional) | Wails v2 app — framework-neutral web features ကို Vite နဲ့ ပြန်သုံး |
+| Backend | **Next.js server + tRPC** သို့မဟုတ် **Express server + tRPC** |
 | Tooling | Shared TypeScript config, Prettier, Cursor rules |
 
 ### Built-in features
@@ -155,7 +155,7 @@ npx create-ranger my-app
 Version သတ်မှတ်ချင်ရင်:
 
 ```bash
-npx create-ranger@1.0.7 my-app
+npx create-ranger@1.2.0 my-app
 ```
 
 ### 2. `npm create`
@@ -200,6 +200,15 @@ cd ranger
 node ./bin/ranger.js my-app
 ```
 
+npm ကို publish မလုပ်ဘဲ local source ကို global command အဖြစ် သုံးချင်ရင်:
+
+```bash
+npm link
+create-ranger my-app
+```
+
+`npm link` က global symlink ချိတ်ပေးတာဖြစ်လို့ ဒီ repository ထဲက code ပြင်တာတွေ command မှာ ချက်ချင်းသက်ရောက်ပါတယ်။ မသုံးတော့ရင် `npm unlink -g create-ranger` နဲ့ ဖြုတ်နိုင်ပါတယ်။
+
 ### Command cheat sheet
 
 | ရည်ရွယ်ချက် | Command |
@@ -233,11 +242,13 @@ npx create-ranger
 
 1. **Project name** — folder name နဲ့ `package.json` name (kebab-case)
 2. **Include Expo mobile app?** — `Y/n`
-3. **Include Next.js web/admin app?** — `Y/n`
-4. **Include Wails desktop app?** — `y/N`
-5. **Backend server** — ရွေးချယ်ပါ (desktop ဖွင့်ရင် Express က default):
-   - `Next.js API routes + tRPC`
-   - `Express server + tRPC`
+3. **Include web/admin app?** — `Y/n`
+4. **Web frontend** — `Next.js App Router` သို့မဟုတ် `React + Vite + TanStack Router`
+5. **Include Wails desktop app?** — `y/N`
+6. **Backend server**:
+   - Next.js ရွေးထားရင် `Next.js server + tRPC` သို့မဟုတ် `Express server + tRPC` ကို ရွေးနိုင်ပါတယ်။
+   - React + Vite ရွေးထားရင် Ranger က `Express server + tRPC` ကို အလိုအလျောက်ထည့်ပြီး frontend နဲ့ ချိတ်ပေးပါတယ်။
+   - Wails desktop ကလည်း Express + tRPC server ကို လိုအပ်ပါတယ်။
 
 Ranger က လက်ရှိ directory ရဲ့ `./<project-name>` ထဲ project ရေးပါတယ်။
 
@@ -255,14 +266,17 @@ ranger <project-name> [options]
 | --- | --- |
 | `--yes`, `-y` | Prompt ကျော်ပြီး defaults သုံး |
 | `--force`, `-f` | folder မဗလာ ဖြစ်နေရင် generated files overwrite |
-| `--web` | Next.js web/admin app ထည့် |
+| `--web` | Web/admin app ထည့် |
 | `--no-web` | Web app မထည့် (Express backend only) |
 | `--mobile` | Expo mobile app ထည့် |
 | `--no-mobile` | Mobile app မထည့် |
 | `--desktop` | Wails desktop app ထည့် |
 | `--no-desktop` | Desktop app မထည့် |
-| `--backend next` | Next.js API routes သုံး |
-| `--backend express` | Express server port `4000` |
+| `--frontend next\|react` | Web frontend ရွေးချယ်ရန် |
+| `--next`, `--nextjs` | Next.js ရွေးပြီး web ဖွင့်ရန် |
+| `--react` | React + Vite + TanStack Router ရွေးပြီး web ဖွင့်ရန် |
+| `--backend next` | Auth၊ tRPC နဲ့ uploads အတွက် Next.js server သုံးရန် |
+| `--backend express` | Port `4000` မှာ Express + tRPC server သုံးရန် |
 | `--backend=express` | `--backend express` နဲ့ တူ |
 
 ### Examples
@@ -271,6 +285,12 @@ ranger <project-name> [options]
 
 ```bash
 npx create-ranger my-app --yes --web --mobile --desktop --backend express
+```
+
+**React + Vite + TanStack Router (Express + tRPC အလိုအလျောက်ပါဝင်):**
+
+```bash
+npx create-ranger my-app --yes --react --mobile
 ```
 
 **Web + desktop with Express API:**
@@ -303,13 +323,16 @@ npx create-ranger my-app --yes --web --mobile --backend express --force
 | --- | --- |
 | Project name | `my-ranger-app` (မပေးရင်) |
 | Web app | enabled |
+| Web frontend | Next.js App Router |
 | Mobile app | enabled |
 | Desktop app | disabled |
-| Backend | `next` (`--desktop` ပေးရင် `express`) |
+| Backend | `next`; React၊ desktop သို့မဟုတ် `--no-web` ဆိုရင် `express` အလိုအလျောက်သုံး |
 
 > **မှတ်ချက်:** `--backend next` ရွေးရင် web app ကို အမြဲ enable လုပ်ပါတယ် — Next.js က API routes ကို host လုပ်လို့ပါ။
 
 > **မှတ်ချက်:** Desktop app က web app နဲ့ Express backend လိုပါတယ်။ `apps/web` UI ကို Vite aliases နဲ့ ပြန်သုံးပြီး API ကို `VITE_API_URL` နဲ့ ခေါ်ပါတယ်။
+
+> **မှတ်ချက်:** React + Vite က Express backend ကို အမြဲသုံးပါတယ်။ Next.js က Next.js route handlers သို့မဟုတ် Express ကို ရွေးနိုင်ပါတယ်။
 
 ---
 
@@ -317,7 +340,7 @@ npx create-ranger my-app --yes --web --mobile --backend express --force
 
 Ranger က backend architecture နှစ်မျိုး ပံ့ပိုးပါတယ်။ deploy ပုံစံနဲ့ ကိုက်ညီအောင် ရွေးပါ။
 
-### `next` — Next.js API routes
+### `next` — Next.js server + tRPC
 
 ```
 Browser / Mobile  →  Next.js (port 3000)
@@ -330,7 +353,7 @@ Browser / Mobile  →  Next.js (port 3000)
 - `NEXT_PUBLIC_API_URL` ဗလာ — same-origin requests
 - သင့်တော်သည်: web-first apps, Vercel-style deploy, local dev ရိုးရှင်း
 
-### `express` — Standalone Express server
+### `express` — Express server + tRPC
 
 ```
 Web (3000)  ──→  Express API (4000)
@@ -340,7 +363,7 @@ Mobile      ──→       ├── /api/auth/*
 ```
 
 - Web နဲ့ API က process ခွဲထား
-- `apps/web/.env` ထဲ `NEXT_PUBLIC_API_URL=http://localhost:4000`
+- root `.env` ထဲ Next အတွက် `NEXT_PUBLIC_API_URL=http://localhost:4000` သို့မဟုတ် React အတွက် `VITE_API_URL=http://localhost:4000`
 - သင့်တော်သည်: mobile + web combo, custom server middleware, traditional API deploy
 
 | | Next backend | Express backend |
@@ -357,7 +380,7 @@ Mobile      ──→       ├── /api/auth/*
 ```
 my-app/
 ├── apps/
-│   ├── web/                 # Next.js admin + public app (if enabled)
+│   ├── web/                 # Next.js or React/Vite admin + public app
 │   ├── mobile/              # Expo app (if enabled)
 │   ├── desktop/             # Wails desktop app (if enabled)
 │   └── server/              # Express API (express backend only)
@@ -370,7 +393,7 @@ my-app/
 ├── scripts/
 │   └── reset-database.sh    # creates local Postgres DB from project name
 ├── .cursor/rules/           # architecture rules for Cursor AI
-├── .env                     # root env (reference)
+├── .env                     # local env တစ်ခုတည်းသော source of truth
 ├── turbo.json
 ├── pnpm-workspace.yaml
 └── package.json
@@ -402,21 +425,22 @@ pnpm install
 
 ### 1. Secrets သတ်မှတ်ပါ
 
-`.env` ဖွင့်ပြီး auth secret အစစ်ထည့်ပါ။
+Generated root `.env` ကိုဖွင့်ပြီး auth နဲ့ seed secrets သတ်မှတ်ပါ။ Root `.env` က local environment တစ်ခုလုံးအတွက် source of truth ဖြစ်ပါတယ်။
 
 ```env
 BETTER_AUTH_SECRET="use-a-long-random-string-at-least-32-chars"
+SEED_ADMIN_PASSWORD="use-a-strong-local-password"
 ```
 
-Ranger က runtime တစ်ခုချင်းစီအတွက် env files လည်း ရေးပေးပါတယ်။
+Scoped `.env.example` files တွေက runtime တစ်ခုချင်းစီအတွက် variable reference ဖြစ်ပြီး root scripts တွေက root `.env` ကို app အားလုံးထဲ load လုပ်ပေးပါတယ်။
 
 | File | သုံးသူ |
 | --- | --- |
-| `packages/db/.env` | Prisma CLI |
-| `apps/web/.env` | Next.js |
-| `apps/server/.env` | Express (express backend only) |
-| `apps/mobile/.env` | Expo |
-| `apps/desktop/frontend/.env` | Wails desktop (`VITE_API_URL`) |
+| `packages/db/.env.example` | Prisma CLI reference |
+| `apps/web/.env.example` | Next.js သို့မဟုတ် Vite client variables |
+| `apps/server/.env.example` | Express reference |
+| `apps/mobile/.env.example` | Expo reference |
+| `apps/desktop/frontend/.env.example` | Wails desktop reference |
 
 ### 2. Database ဖန်တီးပါ
 
@@ -428,7 +452,7 @@ Prompt မှာ `yes` ရိုက်ပါ။ Script က:
 
 - `package.json` name ဖတ်ပါတယ်
 - ကိုက်ညီ PostgreSQL database ဖန်တီးပါတယ် (ဥပမာ `my_app`)
-- env files အားလုံးမှာ `DATABASE_URL` update လုပ်ပါတယ်
+- root `.env` ထဲ `DATABASE_URL` update လုပ်ပါတယ်
 - `packages/db/.env` ကို root `.env` နဲ့ link လုပ်ပါတယ်
 
 ### 3. Schema push & seed
@@ -492,7 +516,7 @@ EXPO_PUBLIC_API_PORT="4000"
 
 ### Physical device testing (Expo)
 
-`apps/mobile/.env` ထဲ machine ရဲ့ LAN IP ထည့်ပါ။
+Root `.env` ထဲ `EXPO_PUBLIC_API_URL` ကို machine ရဲ့ LAN IP နဲ့ update လုပ်ပါ။
 
 ```env
 EXPO_PUBLIC_API_URL="http://192.168.1.10:4000"
@@ -510,7 +534,7 @@ Ranger က opinionated structure ထားပေးလို့ team (နဲ့ 
 
 ```
 src/
-├── app/              # thin route files only
+├── app/ or router.tsx # thin Next.js or TanStack route definitions
 ├── modules/
 │   ├── posts/        # public feature
 │   ├── auth/         # login/signup
@@ -532,8 +556,8 @@ src/features/         # MVVM-style feature modules
 ### Desktop (`apps/desktop`)
 
 ```
-frontend/src/         # Vite shell, auth storage, Next.js shims
-apps/web/src/         # reused UI modules via Vite aliases
+frontend/src/         # Vite shell, auth storage, routing adapter
+apps/web/src/         # framework-neutral UI modules ကို Vite aliases နဲ့ reuse
 ```
 
 - Wails v2 + Vite + React Router frontend
@@ -583,8 +607,11 @@ Project တိုင်းမှာ `.cursor/rules/` ပါဝင်ပါတယ
 | --- | --- |
 | `api/api.mdc` | tRPC procedure auth levels, Zod validation, error handling |
 | `database/database-rule.mdc` | Prisma schema conventions |
-| `web-arch/web-arch.mdc` | Next.js module layout |
+| `web-arch/nextjs.mdc` | Next.js module နဲ့ desktop compatibility rules |
+| `web-arch/react-vite.mdc` | React/Vite, TanStack Router, Query နဲ့ MVVM rules |
 | `mobile-arch/mobile-arch.mdc` | Expo MVVM + StyleSheet-only UI |
+| `server-arch/server-arch.mdc` | Express transport နဲ့ production bundle boundaries |
+| `desktop-arch/desktop-arch.mdc` | Wails/web reuse နဲ့ authentication constraints |
 
 Cursor မှာ အလိုအလျောက် load ဖြစ်ပြီး generated code က scaffold architecture နဲ့ ကိုက်ညီအောင် ထိန်းပေးပါတယ်။
 
@@ -619,10 +646,11 @@ ln -sf ../../.env packages/db/.env
 
 ### Web မှာ `post.getAll` / `user.me` errors (Express backend)
 
-Web app က Next.js ကို ခေါ်နေပြီး API server ကို မခေါ်တာ ဖြစ်နိုင်ပါတယ်။ `apps/web/.env` စစ်ပါ။
+Web app က Express API origin မှားခေါ်နေတာ ဖြစ်နိုင်ပါတယ်။ Root `.env` ကိုစစ်ပါ။
 
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:4000"
+VITE_API_URL="http://localhost:4000"
 ```
 
 ပြီးရင် restart:
@@ -657,7 +685,7 @@ brew install postgresql@17
 
 - iOS Simulator: `http://127.0.0.1:4000` or `http://localhost:4000`
 - Android Emulator: code က `10.0.2.2` auto သုံး
-- Physical device: `apps/mobile/.env` ထဲ Mac ရဲ့ LAN IP သုံး
+- Physical device: root `.env` ထဲ `EXPO_PUBLIC_API_URL` ကို Mac ရဲ့ LAN IP နဲ့သတ်မှတ်
 
 ### Mobile မှာ auth အောင်ပေမယ့် post မတင်ရ
 
@@ -678,19 +706,70 @@ Ranger သည် file တစ်ခုတည်း: `bin/ranger.js`။
 
 Runtime dependencies မရှိပါ။ Generated app dependencies ကို project အသစ်ထဲ `pnpm install` နဲ့ သီးသန့် install လုပ်ရပါမယ်။
 
-Wails desktop app က `addDesktopApp()` ထဲမှာ `addWebApp()` / `addMobileApp()` နဲ့ တူညီတဲ့ pattern သုံးပါတယ်။ `window-test/apps/desktop` ပြောင်းရင်:
+Wails desktop app က `addDesktopApp()` ထဲမှာ `addWebApp()` / `addMobileApp()` နဲ့ တူညီတဲ့ pattern သုံးပါတယ်။ ရွေးထားတဲ့ source directory ကနေ embedded template ကို refresh လုပ်လိုရင်:
 
 ```bash
-pnpm run generate:desktop-app
+pnpm run generate:desktop-app -- /absolute/path/to/apps/desktop
 ```
 
 ### Smoke test (maintainers)
 
 ```bash
-pnpm run smoke
+pnpm run smoke             # fast static generation matrix
+pnpm run verify:generated  # variants အားလုံး install, typecheck, build
 ```
 
-`/private/tmp/ranger-smoke` မှာ web, mobile, desktop, Express backend နဲ့ test project generate လုပ်ပါတယ်။
+Matrix မှာ Next.js + Next server၊ Next.js + Express/tRPC server၊ React/Vite + automatic Express/tRPC server၊ React/Vite + Wails နဲ့ Next.js + Wails projects ပါဝင်ပါတယ်။
+
+### npm ပေါ် publish လုပ်နည်း (maintainers)
+
+`create-ranger` က unscoped public package ဖြစ်ပါတယ်။ Release အသစ်တိုင်းမှာ npm ပေါ် မတင်ရသေးတဲ့ version အသစ်တစ်ခု မဖြစ်မနေသုံးရပါတယ်။
+
+```bash
+cd /path/to/ranger
+
+# npm account ဝင်ပြီး မှန်ကန်တဲ့ account ဟုတ်မဟုတ်စစ်ပါ
+npm login
+npm whoami
+
+# Registry version နဲ့ package.json version နှိုင်းယှဉ်ပါ
+npm view create-ranger version
+npm pkg get version
+```
+
+`package.json` ထဲမှာ publish မယ့် version အသစ်ရှိပြီးသားဆိုရင် version bump ကို ကျော်ပါ။ မရှိသေးရင် သင့်တော်တဲ့ SemVer အမျိုးအစားတစ်ခုကိုသာ ရွေးပါ။
+
+```bash
+npm version patch --no-git-tag-version  # bug fix
+npm version minor --no-git-tag-version  # backward-compatible feature အသစ်
+npm version major --no-git-tag-version  # breaking change
+```
+
+Release checks အားလုံး run ပြီး npm ထဲပါသွားမယ့် files ကို စစ်ပါ:
+
+```bash
+pnpm test
+pnpm verify:generated
+npm pack --dry-run
+npm publish --dry-run
+```
+
+Checks အားလုံးအောင်မြင်ပြီး package contents မှန်မှ publish လုပ်ပါ:
+
+```bash
+npm publish
+npm view create-ranger version
+```
+
+Publish လုပ်ရန် npm account မှာ 2FA သို့မဟုတ် သင့်တော်တဲ့ granular access token လိုအပ်ပါတယ်။ Interactive 2FA သုံးထားရင် `npm publish` က one-time password တောင်းပါလိမ့်မယ်။ Upload မလုပ်ခင် `prepublishOnly` က `pnpm test` ကို အလိုအလျောက် ထပ် run ပါတယ်။
+
+Default npm cache ထဲမှာ root-owned files ရှိလို့ `EPERM` ပြရင် cache ownership ကိုပြင်ပါ သို့မဟုတ် ရေးလို့ရတဲ့ temporary cache ကို သုံးပါ:
+
+```bash
+npm --cache /tmp/create-ranger-npm-cache login
+npm --cache /tmp/create-ranger-npm-cache publish --dry-run
+npm --cache /tmp/create-ranger-npm-cache publish
+```
 
 ---
 

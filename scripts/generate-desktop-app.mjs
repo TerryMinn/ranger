@@ -5,7 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SOURCE = path.join(ROOT, "window-test", "apps", "desktop");
+const sourceArg = process.argv[2] ?? process.env.RANGER_DESKTOP_SOURCE;
+const SOURCE = sourceArg ? path.resolve(process.cwd(), sourceArg) : null;
 const RANGER = path.join(ROOT, "bin", "ranger.js");
 
 const SKIP = new Set(["node_modules", "dist", ".env"]);
@@ -62,6 +63,17 @@ async function walk(dir, base = SOURCE) {
 }
 
 async function main() {
+  if (!SOURCE) {
+    throw new Error(
+      "Usage: pnpm generate:desktop-app -- /absolute/path/to/apps/desktop",
+    );
+  }
+
+  const sourceStats = await fs.stat(SOURCE).catch(() => null);
+  if (!sourceStats?.isDirectory()) {
+    throw new Error(`Desktop template source is not a directory: ${SOURCE}`);
+  }
+
   const fileEntries = await walk(SOURCE);
   const lines = [
     "function addDesktopApp(files, ctx) {",
