@@ -58,10 +58,11 @@ ranger my-app
 ရှိပြီးသား Ranger workspace ထဲကနေ (သို့) အဲဒီအောက်က folder တစ်ခုကနေ run နိုင်ပါတယ်။ App အသစ်တွေကို ရှိပြီးသား blog/auth templates နဲ့ `apps/<name>` ထဲမှာ ထည့်ပေးပါတယ်။
 
 ```bash
-ranger add             # mobile / web / desktop ရွေးပြီး နာမည်မေးမယ်
+ranger add             # mobile / web / desktop / server ရွေးပြီး နာမည်မေးမယ်
 ranger add -m          # နာမည်မေးပြီး Expo blog app ထည့်မယ်
 ranger add -w          # နာမည်မေးပြီး web app ထည့်မယ်
 ranger add -d          # နာမည်မေးပြီး Wails app ထည့်မယ်
+ranger add -s          # Next.js / Express server: new or existing
 
 # နာမည်ကို တစ်ခါတည်းပေးလည်း ရပါတယ်
 ranger add -m reader
@@ -185,7 +186,7 @@ npx create-ranger my-app
 Version သတ်မှတ်ချင်ရင်:
 
 ```bash
-npx create-ranger@1.2.0 my-app
+npx create-ranger@1.4.0 my-app
 ```
 
 ### 2. `npm create`
@@ -844,3 +845,96 @@ pnpm docs:dev
 # Production output: docs/dist
 pnpm docs:build
 ```
+
+## Server management
+
+**1.4.0** မှာ server add/join ပါဝင်ပါတယ်။ ရှိပြီးသား Ranger workspace ထဲမှာ run ပါ။
+
+```bash
+ranger add              # mobile / web / desktop / server ရွေးမယ်
+ranger add -s           # next / express၊ new / existing ရွေးမယ်
+ranger add server       # server interactive flow အတူတူပါပဲ
+
+# Server အသစ်
+ranger add -s api-server --backend express
+ranger add -s next-api --backend next
+ranger add -s reports-server --backend express --new --port 4100
+
+# ရှိပြီးသား app ချိတ်ရန်
+ranger add -s --backend next --existing web
+ranger add -s --backend express --existing server
+
+pnpm install
+pnpm dev:api-server
+```
+
+### ရှိပြီးသား app ချိတ်ခြင်း
+
+Interactive mode မှာ compatible ဖြစ်တဲ့ app နာမည်တွေ ပြပေးပါတယ်။ Next **new** ရွေးရင် blog UI၊ auth၊ uploads နဲ့ tRPC routes ပါတဲ့ Next.js project အသစ်ဖန်တီးပေးပါတယ်။ **existing** ရွေးရင် Ranger `src/app` ပုံစံရှိပြီးသား Next app မှာ UI ကိုထိန်းထားပြီး backend routes ထည့်ပေးပါတယ်။ Frontend က ကိုယ်ပိုင် API host ဖြစ်လာတဲ့အခါ Ranger ထည့်ထားတဲ့ API/upload proxy rewrites ကိုဖြုတ်ပေးပါတယ်။ Custom code/config နဲ့ တိုက်နေရင် ဖိုင်မပြင်ခင် error ပြပေးပါတယ်။
+
+Express **new** က standalone server အသစ်ဖန်တီးပါတယ်။ **existing** က `src/index.ts` ထဲ tRPC ပါပြီးသား Ranger Express server ကိုပြန်သုံးပါတယ်။ မည်သည့် custom Express project မှာမဆို entry point ကို အလိုအလျောက် overwrite/mount မလုပ်ပါဘူး။ Existing package နာမည်ကို ထိန်းထားပြီး join ပြီးသား server ကို ထပ် join လုပ်ရင် ထပ်မရေးပါဘူး။
+
+### Runtime နှင့် workspace integration
+
+Backend နှစ်မျိုးလုံးက `packages/api`, `packages/auth`, `packages/db` ကိုသုံးပါတယ်။ Port သီးသန့်၊ root `dev:<name>` / `start:<name>` scripts နဲ့ Turbo ချိတ်ဆက်မှု ပါပါတယ်။ မူလ commands တွေကို `ranger:base:dev`, `ranger:base:build`, `ranger:base:start` မှာ ထိန်းထားပြီး `ranger-run.mjs` က server အတွက် port/auth origin ကို သတ်မှတ်ပေးပါတယ်။ Root secrets နဲ့ အခြား apps ကိုမပြောင်းပါဘူး။ `@repo/api` ရှိပြီးသားမို့ နာမည်ကို `api` အစား `api-server` လိုပေးပါ။
+
+Runtime override အတွက် `RANGER_SERVER_PORT` နဲ့ `RANGER_SERVER_URL` ကို **service တစ်ခုချင်းစီရဲ့ environment** မှာ သတ်မှတ်ပါ။ Server အများကြီးကို root dev နဲ့ run နေချိန် global override မပေးပါနဲ့။ `.env.server.example` က ရှင်းလင်းချက်အတွက်သာဖြစ်ပြီး auto-load မလုပ်ပါဘူး။
+
+```bash
+RANGER_SERVER_PORT=4100 RANGER_SERVER_URL=https://api.example.com pnpm start:api-server
+```
+
+### Client ချိတ်ခြင်းနှင့် server ဖြုတ်ခြင်း
+
+Managed server ဆီချိတ်တဲ့ Expo/Wails client အသစ်မှာ root API URL နဲ့မရောဖို့ app-local `.env.ranger-client` ကို သုံးပါတယ်။ API target ပြောင်းရင် အဲဒီဖိုင်ကိုပါ update လုပ်ပါ။
+
+ရှိပြီးသား clients တွေက မူလ API ကိုပဲ ဆက်သုံးပါတယ်။ Server အသစ်ဆီချိတ်ဖို့ client public API URL/proxy target ကိုပြောင်းပြီး `package.json` ရဲ့ `ranger.backendApp` ရှိရင် reference ကိုပါပြောင်းပါ။ Expo အတွက် `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_API_PORT`၊ desktop အတွက် `VITE_API_URL` သုံးပါ။ Added web app မှာ `.env.local` နဲ့ proxy configuration ကို စစ်ပြင်ပါ။ Interactive terminal မှာ backend အများကြီးရှိရင် client အသစ်ထည့်ချိန် backend နာမည်ကိုမေးပါတယ်။
+
+မသုံးတော့တဲ့ added server ကို `ranger remove -api-server` နဲ့ သီးသန့်ဖြုတ်နိုင်ပါတယ်။ မှီခိုနေတဲ့ client reference နဲ့ မူလ API host တွေအတွက် removal protection ကို ထိန်းထားပါတယ်။
+
+## VPS deployment နှင့် service boundaries
+
+**ရပါတယ်—Next.js နဲ့ Express API host တွေကို VPS ပေါ်မှာ process/container သီးသန့်တင်နိုင်ပါတယ်။** Next server က Next project တစ်ခုအနေနဲ့ `next build` / `next start` run ရမှာပါ။ API routes ပါရင် static export အနေနဲ့ မရပါဘူး။ Express က bundled Node entry point နဲ့ သီးသန့် run ပါတယ်။
+
+```text
+Browser / Expo / Wails
+         |
+   HTTPS reverse proxy
+         |
+   +-----+---------------------+
+   |                           |
+Web frontend              API service
+Next.js or Vite           Next.js or Express
+                               |
+                          PostgreSQL
+```
+
+Next app တစ်ခုထဲက routes တွေက process/deployment တစ်ခုကို မျှသုံးပါတယ်။ tRPC ကို `packages/api` ထဲခွဲထားတာက source-code separation ဖြစ်ပြီး runtime microservices မဖြစ်သေးပါဘူး။ Router အတူတူနဲ့ database အတူတူသုံးတဲ့ API hosts အများကြီးက modular backend ရဲ့ deployments အများကြီးသာ ဖြစ်ပါတယ်။ Independent microservices အတွက် business boundaries၊ သီးခြား deploy လုပ်နိုင်တဲ့ entry points၊ data ownership နဲ့ service communication contracts တွေ ခွဲသတ်မှတ်ရပါမယ်။
+
+### Build နှင့် run
+
+Workspace dependencies ရရှိဖို့ monorepo root ကနေ build ပါ။
+
+```bash
+pnpm install --frozen-lockfile
+pnpm db:generate
+pnpm exec dotenv -e .env -- pnpm --filter @repo/api-server build
+pnpm exec dotenv -e .env -- pnpm --filter @repo/next-api build
+
+# Deploy လုပ်မယ့် service ကို process manager/container နဲ့ run ပါ
+NODE_ENV=production RANGER_SERVER_URL=https://api.example.com pnpm start:api-server
+# Next API project ဖြစ်ရင်
+NODE_ENV=production RANGER_SERVER_URL=https://api.example.com pnpm start:next-api
+```
+
+Deployment environment မှာ `DATABASE_URL`၊ ခိုင်မာတဲ့ `BETTER_AUTH_SECRET` နဲ့ client `CORS_ORIGIN` ကို သတ်မှတ်ပါ။ Sample domain ကို ကိုယ့် domain နဲ့အစားထိုးပါ။ Start alias က root `.env` ကို load လုပ်ပြီး သတ်မှတ်ပြီးသား environment values ကို ဦးစားပေးပါတယ်။ Runner က service ရဲ့ port/auth base URL ကို ထပ်သတ်မှတ်ပါတယ်။ Frontend public API URLs ကိုလည်း deployed API ဆီပြောင်းပြီး build လုပ်ပါ။
+
+### Runtime dependencies နှင့် storage
+
+Release မှာ runtime/workspace dependencies နဲ့ generated Prisma client ပါရပါမယ်။ Express `dist/index.js` တစ်ဖိုင်တည်း copy လုပ်တာနဲ့ မလုံလောက်ပါဘူး။ Prisma runtime ကို bundle ထဲမထည့်ဘဲ external dependency အဖြစ်သုံးပါတယ်။ Next deployment မှာ production build နဲ့ dependencies လိုပါတယ်။ `public/uploads` ကို persist လုပ်ပါ။ Replica အများကြီးရှိရင် shared volume/object storage သုံးပါ။ Database migration ကို release step တစ်ကြိမ်အဖြစ်သာ run ပါ။ Production data ပေါ်မှာ `db:reset` မသုံးပါနဲ့။
+
+### Reverse proxy နှင့် CORS
+
+HTTPS အတွက် Nginx/Caddy ကိုရှေ့ကထားပြီး `/api`, `/uploads` ကို API service ဆီ route ပေးပါ။ Same-origin proxy သုံးရင် browser cross-origin ပြဿနာတွေ လျော့နည်းပါတယ်။ Generated Next API မှာ general CORS middleware မပါလို့ browser origin သီးခြားဖြစ်ရင် CORS/OPTIONS ကို ထပ်ထည့်ရပါမယ်။ Express က `CORS_ORIGIN` နဲ့ origin policy ပါပြီးသားပါ။ Wails က Express backend template ကိုပဲ ဆက်သုံးပါတယ်။
+
+References: [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting), [tRPC Express adapter](https://trpc.io/docs/server/adapters/express)။

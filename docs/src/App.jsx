@@ -24,6 +24,7 @@ import {
   Zap,
 } from "lucide-react";
 import logo from "../../ranger.png";
+import Landing from "./Landing";
 import {
   groups,
   headings,
@@ -41,9 +42,10 @@ const icons = {
   CONFIGURATION: Code2,
   RESOURCES: Globe2,
 };
+// An empty hash ("", "#" or "#/") is the landing page; docs live at #/<page>.
 const getRoute = () => {
-  const [id = "introduction", anchor = ""] = location.hash.slice(2).split("#");
-  return { id: id || "introduction", anchor };
+  const [id = "", anchor = ""] = location.hash.slice(2).split("#");
+  return { id: id || "home", anchor };
 };
 const href = (id, anchor = "") => `#/${id}${anchor ? `#${anchor}` : ""}`;
 function stored(key, fallback) {
@@ -378,6 +380,7 @@ function SearchDialog({ language, onClose }) {
     <dialog
       ref={dialog}
       className="search-dialog"
+      data-lenis-prevent
       onCancel={onClose}
       onClick={(event) => {
         if (event.target === dialog.current) onClose();
@@ -465,6 +468,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => stored("ranger-theme", "light"));
   const [search, setSearch] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
+  const home = route.id === "home";
   const page = pages.find((item) => item.id === route.id);
   const article = useRef();
   const menuButton = useRef();
@@ -508,7 +512,9 @@ export default function App() {
     remember("ranger-language", language);
   }, [language]);
   useEffect(() => {
-    document.title = `${page ? label(page, language) : "Page not found"} · Ranger Docs`;
+    document.title = home
+      ? "ဘိန်းစားမဟုတ်တဲ့ Ranger · Full-stack monorepos in one command"
+      : `${page ? label(page, language) : "Page not found"} · Ranger Docs`;
     if (route.anchor)
       requestAnimationFrame(() => {
         let anchor = route.anchor;
@@ -526,7 +532,7 @@ export default function App() {
           });
       });
     else window.scrollTo({ top: 0, behavior: "instant" });
-  }, [route, language, page]);
+  }, [route, language, page, home]);
   useEffect(() => {
     setActiveHeading("");
     const observer = new IntersectionObserver(
@@ -562,21 +568,40 @@ export default function App() {
       );
     };
   const index = pages.indexOf(page);
+  const skipLink = (
+    <a
+      className="skip-link"
+      href="#main-content"
+      onClick={(e) => {
+        e.preventDefault();
+        document.getElementById("main-content").focus();
+      }}
+    >
+      Skip to content
+    </a>
+  );
+  const searchDialog = search && (
+    <SearchDialog language={language} onClose={() => setSearch(false)} />
+  );
+  if (home)
+    return (
+      <>
+        {skipLink}
+        <Landing
+          language={language}
+          setLanguage={setLanguage}
+          theme={theme}
+          setTheme={setTheme}
+        />
+        {searchDialog}
+      </>
+    );
   return (
     <>
-      <a
-        className="skip-link"
-        href="#main-content"
-        onClick={(e) => {
-          e.preventDefault();
-          document.getElementById("main-content").focus();
-        }}
-      >
-        Skip to content
-      </a>
+      {skipLink}
       <header className="header">
         <div className="header-brand">
-          <a href={href("introduction")} aria-label="Ranger documentation home">
+          <a href="#/" aria-label="Ranger home">
             <Logo />
           </a>
           <span className="brand-divider" />
@@ -864,9 +889,7 @@ export default function App() {
           </a>
         </aside>
       </div>
-      {search && (
-        <SearchDialog language={language} onClose={() => setSearch(false)} />
-      )}
+      {searchDialog}
     </>
   );
 }

@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+# Expo Mobile Architecture
+
+- Route files live in `apps/mobile/app/**` and stay thin.
+- Feature code lives under `apps/mobile/src/features/<feature>`.
+- Use MVVM-style hooks in `hooks/` for tRPC calls, form orchestration, uploads, and navigation side effects.
+- Screens and components should stay presentational.
+- Use React Native `StyleSheet` only for UI styling in this scaffold.
+- Do not add mobile UI libraries unless the project deliberately changes that rule.

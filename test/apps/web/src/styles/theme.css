@@ -1,0 +1,85 @@
+:root {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --muted: #f5f5f5;
+  --border: #d4d4d4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  margin: 0;
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+@layer components {
+  .ui-btn {
+    display: inline-flex;
+    height: 2.5rem;
+    min-width: 5rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.375rem;
+    padding-inline: 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1;
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      border-color 150ms ease;
+  }
+
+  .ui-btn:disabled {
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  .ui-btn-primary {
+    background-color: #000000;
+    color: #ffffff;
+  }
+
+  .ui-btn-primary:hover {
+    background-color: #262626;
+    color: #ffffff;
+  }
+
+  .ui-btn-outline {
+    border: 1px solid #d4d4d4;
+    background-color: #ffffff;
+    color: #000000;
+  }
+
+  .ui-btn-outline:hover {
+    background-color: #f5f5f5;
+    color: #000000;
+  }
+
+  .ui-btn-ghost {
+    background-color: transparent;
+    color: #000000;
+  }
+
+  .ui-btn-ghost:hover {
+    background-color: #f5f5f5;
+    color: #000000;
+  }
+}

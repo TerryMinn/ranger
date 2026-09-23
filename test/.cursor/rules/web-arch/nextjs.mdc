@@ -1,0 +1,16 @@
+---
+alwaysApply: true
+---
+
+# Next.js Web Architecture
+
+- Route definitions live in `apps/web/src/app/**` and stay thin.
+- Feature code lives under `apps/web/src/modules/<domain>`.
+- Admin feature code lives under `apps/web/src/modules/admin/<domain>`.
+- Shared UI primitives live under `apps/web/src/components/ui`.
+- Business logic belongs in hooks/view-models, routers, schemas, utils, or server libs.
+- Components should render data and call actions returned by hooks.
+- Keep reusable feature modules client-compatible because the Wails desktop may consume them through Vite aliases.
+- Import navigation through `@/lib/navigation` so feature modules remain desktop-compatible.
+- Use TanStack Query through the typed tRPC React client for server state.
+- Use shadcn-style primitives and keep the visual system black and white.

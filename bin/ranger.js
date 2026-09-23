@@ -4993,6 +4993,7 @@ function addExpressServer(files, ctx) {
         clean: "rm -rf dist .turbo node_modules public/uploads",
       },
       dependencies: {
+        "@prisma/client": "^6.1.0",
         "@repo/api": "workspace:*",
         "@repo/auth": "workspace:*",
         "@repo/db": "workspace:*",
@@ -5045,6 +5046,7 @@ function addExpressServer(files, ctx) {
         sourcemap: true,
         splitting: false,
         noExternal: ["@repo/api", "@repo/auth", "@repo/db"],
+        external: ["@prisma/client", "next"],
       });
     `,
   );
@@ -7744,7 +7746,7 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "add" || command === "remove") {
     await manageApps(command, args, {
-      mobile: addMobileApp, web: addWebApp, desktop: addDesktopApp, write: writeFiles,
+      mobile: addMobileApp, web: addWebApp, desktop: addDesktopApp, express: addExpressServer, nextBackend: addNextBackend, write: writeFiles,
     });
     return;
   }

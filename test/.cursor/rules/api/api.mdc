@@ -1,0 +1,14 @@
+---
+alwaysApply: true
+---
+
+# tRPC Route Rules
+
+- Every procedure must explicitly use `publicProcedure`, `protectedProcedure`, or `adminProcedure`.
+- Mutations that create, update, delete, upload, or expose private data must not be public.
+- Validate every input with Zod.
+- Check ownership before changing user-owned records.
+- Check role authorization for admin records.
+- Use Prisma transactions when multiple writes must succeed together.
+- Return predictable errors with `TRPCError` for unauthorized, forbidden, not found, and bad request cases.
+- Keep routers small and register them in `packages/api/src/root.ts`.

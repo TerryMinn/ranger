@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+# Ranger Architecture Contract
+
+- Keep domain and data-access logic in `packages/api`, `packages/auth`, and `packages/db`; apps are delivery layers.
+- Consume server capabilities through the typed tRPC router instead of duplicating fetch contracts in each app.
+- Never import app code into shared packages.
+- Keep route entry files thin and move stateful orchestration into feature view-model hooks.
+- Treat authentication, authorization, uploads, and environment changes as cross-client changes; verify every enabled client.
+- Run `pnpm typecheck` after architectural changes and build the affected app before finishing.

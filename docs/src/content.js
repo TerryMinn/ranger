@@ -84,6 +84,16 @@ export const pages = [
     badge: "New",
   },
   {
+    id: "server-management",
+    title: "Add & join servers",
+    my: "Server ထည့်ခြင်း၊ ချိတ်ခြင်း",
+    group: "BUILD WITH RANGER",
+    description:
+      "Create a Next.js or Express API host, or join an existing app.",
+    indices: [22],
+    badge: "New",
+  },
+  {
     id: "backend-modes",
     title: "Backend modes",
     my: "Backend modes",
@@ -124,6 +134,15 @@ export const pages = [
     indices: [14],
   },
   {
+    id: "vps-deployment",
+    title: "VPS & services",
+    my: "VPS နှင့် services",
+    group: "RESOURCES",
+    description:
+      "Deploy your API independently and understand service boundaries.",
+    indices: [23],
+  },
+  {
     id: "troubleshooting",
     title: "Troubleshooting",
     my: "ပြဿနာဖြေရှင်းခြင်း",
@@ -149,7 +168,7 @@ export const label = (page, language) =>
 export const slug = (text) =>
   String(text)
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/[^\p{L}\p{M}\p{N}\s-]/gu, "")
     .trim()
     .replace(/\s+/g, "-");
 export function headings(markdown) {
@@ -175,11 +194,16 @@ export function headings(markdown) {
 
 export function resolveDocHref(url, currentPage) {
   if (url?.startsWith("#")) {
-    const anchor = url.slice(1);
+    let anchor = url.slice(1);
+    try {
+      anchor = decodeURIComponent(anchor);
+    } catch {
+      /* Keep malformed fragments harmless. */
+    }
     const target = pages.find((page) =>
       page.indices.some((index) =>
         [en[index], my[index]].some(
-          (section) => slug(section.title) === anchor,
+          (section) => slug(section.title) === slug(anchor),
         ),
       ),
     );

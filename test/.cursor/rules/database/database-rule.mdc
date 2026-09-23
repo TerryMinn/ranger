@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+# Prisma Schema Rules
+
+- Preserve existing fields, relations, indexes, `@map`, and `@@map` unless the change is required.
+- Prefer nullable fields for existing data unless a default is business-correct.
+- Add indexes for foreign keys and common filters.
+- Use `Cascade` only for dependent records such as sessions and posts owned by a user.
+- Use `SetNull` or `Restrict` for business records that must survive parent deletion.
+- Never edit generated Prisma client files.

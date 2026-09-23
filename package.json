@@ -1,6 +1,6 @@
 {
   "name": "create-ranger",
-  "version": "1.2.0",
+  "version": "1.4.0",
   "description": "Scaffold production-ready monorepos with Next.js or React/Vite, Expo, tRPC, Better Auth, and Prisma.",
   "type": "module",
   "bin": {
@@ -16,7 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "check": "node --check ./bin/ranger.js && node --check ./bin/manage-apps.js",
+    "check": "node --check ./bin/ranger.js && node --check ./bin/manage-apps.js && node --check ./bin/manage-server.js",
     "generate:desktop-app": "node ./scripts/generate-desktop-app.mjs",
     "smoke": "node ./scripts/smoke-test.mjs",
     "verify:generated": "RANGER_SMOKE_INSTALL=1 node ./scripts/smoke-test.mjs",

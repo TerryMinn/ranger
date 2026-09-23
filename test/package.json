@@ -1,0 +1,33 @@
+{
+  "name": "test",
+  "private": true,
+  "scripts": {
+    "postinstall": "dotenv -e .env -- turbo run db:generate --filter=@repo/db",
+    "build": "dotenv -e .env -- turbo run build",
+    "dev": "dotenv -e .env -- turbo run dev --filter=@repo/test --filter=@repo/web --filter=@repo/mobile --ui=tui",
+    "dev:stream": "dotenv -e .env -- turbo run dev --filter=@repo/test --filter=@repo/web --filter=@repo/mobile --ui=stream",
+    "lint": "dotenv -e .env -- turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,mdc}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,mdc}\"",
+    "db:generate": "dotenv -e .env -- turbo run db:generate",
+    "db:reset": "bash ./scripts/reset-database.sh",
+    "db:push": "dotenv -e .env -- turbo run db:push --filter=@repo/db",
+    "db:migrate": "dotenv -e .env -- turbo run db:migrate --filter=@repo/db",
+    "db:seed": "dotenv -e .env -- turbo run db:seed --filter=@repo/db",
+    "db:studio": "dotenv -e .env -- pnpm --filter @repo/db db:studio",
+    "typecheck": "dotenv -e .env -- turbo run typecheck",
+    "dev:web": "dotenv -e .env -- turbo run dev --filter=@repo/web --ui=stream",
+    "dev:mobile": "dotenv -e .env -- turbo run dev --filter=@repo/mobile --ui=stream",
+    "dev:test": "dotenv -e .env -- turbo run dev --filter=@repo/test --ui=stream"
+  },
+  "devDependencies": {
+    "@repo/typescript-config": "workspace:*",
+    "dotenv-cli": "^8.0.0",
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.0"
+  },
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

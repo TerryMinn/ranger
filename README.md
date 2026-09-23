@@ -58,10 +58,11 @@ ranger my-app
 Run these commands from an existing Ranger workspace (or any folder inside it). New apps go into `apps/<name>`, using the existing blog/auth templates and shared API packages.
 
 ```bash
-ranger add             # ask mobile, web, or desktop, then ask the name
+ranger add             # ask mobile, web, desktop, or server
 ranger add -m          # ask the name; add an Expo blog app
 ranger add -w          # ask the name; add a web app
 ranger add -d          # ask the name; add a Wails desktop app
+ranger add -s          # Next.js / Express server: new or existing
 
 # Names can also be supplied directly
 ranger add -m reader
@@ -185,7 +186,7 @@ npx create-ranger my-app
 Pin a version:
 
 ```bash
-npx create-ranger@1.2.0 my-app
+npx create-ranger@1.4.0 my-app
 ```
 
 ### 2. `npm create`
@@ -840,3 +841,96 @@ pnpm docs:dev
 # Production output: docs/dist
 pnpm docs:build
 ```
+
+## Server management
+
+Available in **1.4.0**. Run inside an existing Ranger workspace:
+
+```bash
+ranger add              # select mobile, web, desktop, or server
+ranger add -s           # choose next/express, then new/existing
+ranger add server       # same interactive server flow
+
+# Create a standalone Express app or a full Next.js app with API routes
+ranger add -s api-server --backend express
+ranger add -s next-api --backend next
+ranger add -s reports-server --backend express --new --port 4100
+
+# Select a compatible existing app by folder name
+ranger add -s --backend next --existing web
+ranger add -s --backend express --existing server
+
+pnpm install
+pnpm dev:api-server
+```
+
+### Join an existing app
+
+The interactive flow lists compatible existing apps. Next.js requires a real Next project: **new** generates one with the blog UI, auth, uploads and tRPC routes; **existing** adds backend routes to a Ranger `src/app` Next application while preserving its UI. The generated API/upload forwarding rewrites are removed when that frontend becomes its own API host. Existing custom route/config collisions stop the operation before writing files.
+
+Express **new** generates a standalone server. Express **existing** reuses an existing Ranger Express server with the tRPC entry point in `src/index.ts`; it does not overwrite custom Express code or automatically mount middleware into arbitrary projects. Existing apps retain their package names. Rejoining an already registered server is a no-op.
+
+### Runtime and workspace integration
+
+Both modes use `packages/api`, `packages/auth`, and `packages/db`. Server apps get a unique port, `dev:<name>` / `start:<name>` root scripts, and Turbo integration. Their original commands are retained under `ranger:base:dev`, `ranger:base:build`, and `ranger:base:start`. `ranger-run.mjs` sets the selected server's port and auth origin without changing other apps or root secrets. Package names must be unique across apps and shared packages: use `api-server`, not `api` (which is already `@repo/api`).
+
+`RANGER_SERVER_PORT` and `RANGER_SERVER_URL` override runtime defaults for **one server process**. Set them in that service's environment, not globally when running multiple servers. Turbo forwards these variables. `.env.server.example` documents them; it is not loaded automatically.
+
+```bash
+RANGER_SERVER_PORT=4100 RANGER_SERVER_URL=https://api.example.com pnpm start:api-server
+```
+
+### Connect clients and remove servers
+
+New Expo/Wails clients targeting a managed server use an app-local `.env.ranger-client` override so the root API URL cannot silently point them at a different host. Update that file when changing their API target.
+
+Existing clients keep their current API host. To connect a client to another server, set its public API URL or reverse proxy target, and update its `package.json` `ranger.backendApp` reference when present. For Expo use `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_API_PORT`; for desktop use `VITE_API_URL`. Added web apps have a local `.env.local` and generated proxy configuration: change both as appropriate. New client apps ask which backend to use when multiple hosts are available in an interactive terminal.
+
+Removing an added server uses the same `ranger remove -api-server` command. An unused extra server can be removed independently. Declared client dependencies and legacy API hosts remain protected against accidental removal.
+
+## VPS deployment and service boundaries
+
+**Yes: Next.js and Express API hosts can run as separate processes or containers on a VPS.** A Next server still runs a Next.js project (`next build` / `next start`); it cannot run as a static export when it serves API routes. Express runs its own bundled Node entry point.
+
+```text
+Browser / Expo / Wails
+         |
+   HTTPS reverse proxy
+         |
+   +-----+---------------------+
+   |                           |
+Web frontend              API service
+Next.js or Vite           Next.js or Express
+                               |
+                          PostgreSQL
+```
+
+The routes inside one Next application share that application's process and deployment. Moving tRPC routers to `packages/api` separates source code, not runtime services. Multiple hosts exposing the same routers and sharing a database are multiple deployments of a modular backend; they are not automatically independent microservices. Independent services need explicit business boundaries, independently deployable entry points, and deliberate data ownership and communication contracts.
+
+### Build and run
+
+Build from the monorepo root so workspace dependencies remain available:
+
+```bash
+pnpm install --frozen-lockfile
+pnpm db:generate
+pnpm exec dotenv -e .env -- pnpm --filter @repo/api-server build
+pnpm exec dotenv -e .env -- pnpm --filter @repo/next-api build
+
+# Run only the service you deployed, using a process manager/container
+NODE_ENV=production RANGER_SERVER_URL=https://api.example.com pnpm start:api-server
+# Or the Next API project:
+NODE_ENV=production RANGER_SERVER_URL=https://api.example.com pnpm start:next-api
+```
+
+Use deployment environment values for `DATABASE_URL`, a strong `BETTER_AUTH_SECRET`, and the permitted client `CORS_ORIGIN`. Replace sample domains with your own. The start aliases load root `.env`; already-set environment variables take precedence. The server runner then supplies its own `PORT` and auth base URL. Build-time public frontend URLs must also point to the deployed API.
+
+### Runtime dependencies and storage
+
+Keep workspace/runtime dependencies and the generated Prisma client with the release; copying only Express `dist/index.js` is insufficient. Express externalizes Prisma rather than bundling its native runtime. A Next deployment needs its production build and dependencies. Persist `public/uploads`, and use shared object storage or a shared volume before scaling to several replicas. Apply database migrations once as a release step, not independently in every replica; never run `db:reset` on production data.
+
+### Reverse proxy and CORS
+
+Put Nginx/Caddy in front for HTTPS and route `/api` and `/uploads` to the chosen API service. Same-origin proxying avoids cross-origin browser requests. The generated Next API routes do not add general browser CORS middleware; separate browser origins require explicit CORS/OPTIONS handling. Express already has an origin policy configured through `CORS_ORIGIN`. Wails continues to use the Express backend template.
+
+References: [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting), [tRPC Express adapter](https://trpc.io/docs/server/adapters/express).
