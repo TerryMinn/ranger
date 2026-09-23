@@ -53,6 +53,36 @@ ranger my-app
 
 ---
 
+## Add or remove apps
+
+Run these commands from an existing Ranger workspace (or any folder inside it). New apps go into `apps/<name>`, using the existing blog/auth templates and shared API packages.
+
+```bash
+ranger add             # ask mobile, web, or desktop, then ask the name
+ranger add -m          # ask the name; add an Expo blog app
+ranger add -w          # ask the name; add a web app
+ranger add -d          # ask the name; add a Wails desktop app
+
+# Names can also be supplied directly
+ranger add -m reader
+ranger add -w dashboard --frontend react
+ranger add -d office
+
+ranger remove          # checkbox list of existing app folder names
+ranger remove -reader
+ranger remove -dashboard -office
+```
+
+In the removal list, use **↑/↓** to move, **Space** to select multiple apps, **Enter** to delete the selected app folders, and **Esc** to cancel. Direct removal deletes the named app folders without another prompt, including local changes inside them.
+
+App names use lowercase letters, numbers, and hyphens. Existing folders and package names are never overwritten. Web apps default to the existing web framework; `--frontend next` and `--frontend react` override it. Added apps receive separate development ports and a `pnpm dev:<name>` command, and join the root Turbo dev commands automatically. Expo apps reuse the workspace's auth scheme.
+
+Wails retains the existing scaffold's requirements: an **Express backend**, an existing web app whose UI it reuses, Go, and the Wails v2 CLI. A Next.js API workspace needs to migrate to Express before adding Wails. Dependent apps must be removed together; Ranger stops removal of an API host or shared web UI while other apps still use it.
+
+Removal also cleans root scripts, package-specific Turbo tasks and task dependencies, explicit workspace paths, and pnpm lockfile importers. Shared packages stay in place. Run `pnpm install` after adding or removing apps to install dependencies and refresh the lockfile.
+
+Added web apps proxy `/api` and `/uploads` to the existing API host. React/Vite deployments need equivalent reverse-proxy routes, or an explicit `VITE_API_URL` in the added app's `.env.local` with appropriate backend CORS configuration.
+
 ## Quick start
 
 From an empty folder, run Ranger, set up the database, and start dev:
@@ -799,3 +829,14 @@ MIT — see `LICENSE` in the repository.
   <strong>Built by <a href="https://github.com/rangorithm">Rangorithm</a></strong><br>
   Generate once. Ship features.
 </p>
+
+## Documentation website
+
+The React documentation site lives in [`docs/`](./docs/README.md). It uses the Ranger logo, supports English/Myanmar, and includes local search and light/dark themes.
+
+```bash
+pnpm --dir docs install
+pnpm docs:dev
+# Production output: docs/dist
+pnpm docs:build
+```

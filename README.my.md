@@ -53,6 +53,36 @@ ranger my-app
 
 ---
 
+## App အသစ်ထည့်ခြင်းနှင့် ဖြုတ်ခြင်း
+
+ရှိပြီးသား Ranger workspace ထဲကနေ (သို့) အဲဒီအောက်က folder တစ်ခုကနေ run နိုင်ပါတယ်။ App အသစ်တွေကို ရှိပြီးသား blog/auth templates နဲ့ `apps/<name>` ထဲမှာ ထည့်ပေးပါတယ်။
+
+```bash
+ranger add             # mobile / web / desktop ရွေးပြီး နာမည်မေးမယ်
+ranger add -m          # နာမည်မေးပြီး Expo blog app ထည့်မယ်
+ranger add -w          # နာမည်မေးပြီး web app ထည့်မယ်
+ranger add -d          # နာမည်မေးပြီး Wails app ထည့်မယ်
+
+# နာမည်ကို တစ်ခါတည်းပေးလည်း ရပါတယ်
+ranger add -m reader
+ranger add -w dashboard --frontend react
+ranger add -d office
+
+ranger remove          # ရှိပြီးသား app နာမည်တွေကို checkbox နဲ့ရွေးမယ်
+ranger remove -reader
+ranger remove -dashboard -office
+```
+
+Remove list မှာ **↑/↓** နဲ့ရွှေ့၊ **Space** နဲ့ app တစ်ခုထက်ပိုရွေး၊ **Enter** နဲ့ဖြုတ်၊ **Esc** နဲ့ cancel လုပ်နိုင်ပါတယ်။ ရွေးထားတဲ့ app folder အတွင်းက local changes အပါအဝင် ဖျက်မှာဖြစ်ပြီး နာမည်ပေးပြီး remove လုပ်ရင် confirmation ထပ်မမေးပါဘူး။
+
+နာမည်ကို lowercase letters၊ numbers နဲ့ hyphens သုံးပေးပါ။ ရှိပြီးသား folder/package ကို overwrite မလုပ်ပါဘူး။ Web framework က ရှိပြီးသား web အတိုင်း default ယူပြီး `--frontend next` / `--frontend react` နဲ့ပြောင်းနိုင်ပါတယ်။ App အသစ်တိုင်းအတွက် dev port သီးသန့်၊ `pnpm dev:<name>` command နဲ့ root Turbo dev ချိတ်ဆက်မှု ထည့်ပေးပါတယ်။ Expo app တွေက workspace ရဲ့ auth scheme ကို ပြန်သုံးပါတယ်။
+
+Wails က မူလ scaffold အတိုင်း **Express backend**၊ UI ပြန်သုံးမယ့် web app၊ Go နဲ့ Wails v2 CLI လိုပါတယ်။ Next.js API workspace ဖြစ်နေရင် Wails မထည့်ခင် Express သို့ migrate လုပ်ရပါမယ်။ App တစ်ခုက အခြား app ကို မှီခိုနေရင် အတူရွေးဖြုတ်ရပါမယ်။ ကျန် app တွေ သုံးနေတဲ့ API host/web UI ကို တစ်ခုတည်းဖြုတ်တာကို တားပေးပါတယ်။
+
+ဖြုတ်တဲ့အခါ root scripts၊ app-specific Turbo tasks/references၊ workspace paths နဲ့ pnpm lockfile importers တွေကိုပါ cleanup လုပ်ပေးပါတယ်။ Shared packages တွေကို ထိန်းထားပါတယ်။ Add/remove ပြီးတိုင်း dependencies နဲ့ lockfile update အတွက် `pnpm install` run ပေးပါ။
+
+Web app အသစ်ရဲ့ `/api` နဲ့ `/uploads` ကို ရှိပြီးသား API host ဆီ proxy လုပ်ပေးပါတယ်။ React/Vite ကို deploy လုပ်တဲ့အခါ reverse-proxy routes ထည့်ပေးရန် သို့မဟုတ် app ရဲ့ `.env.local` မှာ `VITE_API_URL` သတ်မှတ်ပြီး backend CORS configure လုပ်ရန် လိုပါတယ်။
+
 ## အမြန် စတင်
 
 Folder အလွတ်တစ်ခုကနေ Ranger run ပြီး database setup လုပ်ကာ dev စတင်ပါ။
@@ -803,3 +833,14 @@ MIT — repository ထဲ `LICENSE` ကို ကြည့်ပါ။
   <strong>Built by <a href="https://github.com/rangorithm">Rangorithm</a></strong><br>
   Generate once. Ship features.
 </p>
+
+## Documentation website
+
+React documentation website ကို [`docs/`](./docs/README.md) ထဲမှာ ထည့်ထားပါတယ်။ Ranger logo၊ English/မြန်မာ docs၊ search နဲ့ light/dark theme ပါဝင်ပါတယ်။
+
+```bash
+pnpm --dir docs install
+pnpm docs:dev
+# Production output: docs/dist
+pnpm docs:build
+```

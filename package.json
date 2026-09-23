@@ -16,12 +16,15 @@
     "LICENSE"
   ],
   "scripts": {
-    "check": "node --check ./bin/ranger.js",
+    "check": "node --check ./bin/ranger.js && node --check ./bin/manage-apps.js",
     "generate:desktop-app": "node ./scripts/generate-desktop-app.mjs",
     "smoke": "node ./scripts/smoke-test.mjs",
     "verify:generated": "RANGER_SMOKE_INSTALL=1 node ./scripts/smoke-test.mjs",
-    "test": "pnpm run check && pnpm run smoke",
-    "prepublishOnly": "pnpm run test"
+    "test": "pnpm run check && pnpm run smoke && node ./scripts/manage-apps-test.mjs",
+    "prepublishOnly": "pnpm run test",
+    "docs:dev": "pnpm --dir docs dev",
+    "docs:build": "pnpm --dir docs build",
+    "docs:preview": "pnpm --dir docs preview"
   },
   "keywords": [
     "ranger",

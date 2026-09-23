@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs/promises";
+import { manageApps } from "./manage-apps.js";
 import crypto from "node:crypto";
 import path from "node:path";
 import process from "node:process";
@@ -7740,6 +7741,13 @@ The macOS app is written to \`build/bin/\`.
   );
 }
 async function main() {
+  const [command, ...args] = process.argv.slice(2);
+  if (command === "add" || command === "remove") {
+    await manageApps(command, args, {
+      mobile: addMobileApp, web: addWebApp, desktop: addDesktopApp, write: writeFiles,
+    });
+    return;
+  }
   const parsed = parseArgs(process.argv.slice(2));
   const prompted = await promptForOptions(parsed);
   const ctx = normalizeOptions(prompted);
